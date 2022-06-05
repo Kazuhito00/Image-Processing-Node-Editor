@@ -1,0 +1,18 @@
+{
+    "webcam_width": 1280,
+    "webcam_height": 720,
+    "editor_width": 1280,
+    "editor_height": 720,
+    "input_window_width": 240,
+    "input_window_height": 135,
+    "process_width": 240,
+    "process_height": 135,
+    "result_width": 480,
+    "result_height": 270,
+    "video_writer_width": 1280,
+    "video_writer_height": 720,
+    "video_writer_fps": 30,
+    "video_writer_directory": "./_VideoWriter",
+    "use_pref_counter": true,
+    "draw_info_on_result":true
+}
