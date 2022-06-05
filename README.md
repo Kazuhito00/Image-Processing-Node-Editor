@@ -527,4 +527,4 @@ Image-Processing-Node-Editorのソースコード自体は[Apache-2.0 license](L
 詳細は各ディレクトリ同梱のLICENSEファイルをご確認ください。
 
 # License(Image)
-サンプルで表示している画像は[フリー素材ぱくたそ](https://www.pakutaso.com/)様からお借りしています。
+サンプルで表示している画像は[フリー素材ぱくたそ](https://www.pakutaso.com/)様、[NHKクリエイティブ・ライブラリー](https://www.nhk.or.jp/archives/creative/)様からお借りしています。
