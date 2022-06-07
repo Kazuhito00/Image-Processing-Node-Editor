@@ -6,14 +6,14 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.preview_release_node.mot.motpy.motpy import Motpy
-from node.preview_release_node.mot.bytetrack.mc_bytetrack import MultiClassByteTrack
-from node.preview_release_node.mot.norfair.mc_norfair import MultiClassNorfair
+from ipn_editor.node.preview_release_node.mot.motpy.motpy import Motpy
+from ipn_editor.node.preview_release_node.mot.bytetrack.mc_bytetrack import MultiClassByteTrack
+from ipn_editor.node.preview_release_node.mot.norfair.mc_norfair import MultiClassNorfair
 
-from node.draw_node.draw_util.draw_util import draw_multi_object_tracking_info
+from ipn_editor.node.draw_node.draw_util.draw_util import draw_multi_object_tracking_info
 
 
 class Node(DpgNodeABC):

@@ -4,7 +4,7 @@ import copy
 
 import numpy as np
 
-from node.preview_release_node.mot.bytetrack.tracker.byte_tracker import BYTETracker
+from ipn_editor.node.preview_release_node.mot.bytetrack.tracker.byte_tracker import BYTETracker
 
 
 class dict_dot_notation(dict):

@@ -6,16 +6,16 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.object_detection.YOLOX.yolox import YOLOX
-from node.deep_learning_node.object_detection.LightWeightPersonDetector.detector import LWPDetector
+from ipn_editor.node.deep_learning_node.object_detection.YOLOX.yolox import YOLOX
+from ipn_editor.node.deep_learning_node.object_detection.LightWeightPersonDetector.detector import LWPDetector
 
-from node.deep_learning_node.object_detection.coco_class_names import coco_class_names
-from node.deep_learning_node.object_detection.coco_class_names_only_person import coco_class_names_only_person
+from ipn_editor.node.deep_learning_node.object_detection.coco_class_names import coco_class_names
+from ipn_editor.node.deep_learning_node.object_detection.coco_class_names_only_person import coco_class_names_only_person
 
-from node.draw_node.draw_util.draw_util import draw_object_detection_info
+from ipn_editor.node.draw_node.draw_util.draw_util import draw_object_detection_info
 
 
 class Node(DpgNodeABC):

@@ -6,25 +6,25 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.pose_estimation.movenet.movenet import (
+from ipn_editor.node.deep_learning_node.pose_estimation.movenet.movenet import (
     MoveNetSinglePoseLightning,
     MoveNetSinglePoseThunder,
     MoveNetMultiPoseLightning,
 )
-from node.deep_learning_node.pose_estimation.mediapipe_hands.mediapipe_hands import (
+from ipn_editor.node.deep_learning_node.pose_estimation.mediapipe_hands.mediapipe_hands import (
     MediaPipeHandsComplexity0,
     MediaPipeHandsComplexity1,
 )
-from node.deep_learning_node.pose_estimation.mediapipe_pose.mediapipe_pose import (
+from ipn_editor.node.deep_learning_node.pose_estimation.mediapipe_pose.mediapipe_pose import (
     MediaPipePoseComplexity0,
     MediaPipePoseComplexity1,
     MediaPipePoseComplexity2,
 )
 
-from node.draw_node.draw_util.draw_util import draw_pose_estimation_info
+from ipn_editor.node.draw_node.draw_util.draw_util import draw_pose_estimation_info
 
 
 class Node(DpgNodeABC):

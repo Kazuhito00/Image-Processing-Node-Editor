@@ -5,18 +5,18 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.semantic_segmentation.deeplab_v3.deeplab_v3 import DeepLabV3
-from node.deep_learning_node.semantic_segmentation.road_segmentation_adas_0001.road_segmentation import RoadSegmentation
-from node.deep_learning_node.semantic_segmentation.skin_clothes_hair_segmentation.skin_clothes_hair_segmentation import SkinClothesHairSegmentation
-from node.deep_learning_node.semantic_segmentation.mediapipe_selfie_segmentation.mediapipe_selfie_segmentation import (
+from ipn_editor.node.deep_learning_node.semantic_segmentation.deeplab_v3.deeplab_v3 import DeepLabV3
+from ipn_editor.node.deep_learning_node.semantic_segmentation.road_segmentation_adas_0001.road_segmentation import RoadSegmentation
+from ipn_editor.node.deep_learning_node.semantic_segmentation.skin_clothes_hair_segmentation.skin_clothes_hair_segmentation import SkinClothesHairSegmentation
+from ipn_editor.node.deep_learning_node.semantic_segmentation.mediapipe_selfie_segmentation.mediapipe_selfie_segmentation import (
     MediaPipeSelfieSegmentationNormal,
     MediaPipeSelfieSegmentationLandScape,
 )
 
-from node.draw_node.draw_util.draw_util import draw_semantic_segmentation_info
+from ipn_editor.node.draw_node.draw_util.draw_util import draw_semantic_segmentation_info
 
 
 class Node(DpgNodeABC):

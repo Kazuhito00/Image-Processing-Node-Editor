@@ -6,20 +6,20 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.face_detection.YuNet.yunet import YuNet
-from node.deep_learning_node.face_detection.mediapipe_facedetection.mediapipe_facedetection import (
+from ipn_editor.node.deep_learning_node.face_detection.YuNet.yunet import YuNet
+from ipn_editor.node.deep_learning_node.face_detection.mediapipe_facedetection.mediapipe_facedetection import (
     MediaPipeFaceDetectionModel0,
     MediaPipeFaceDetectionModel1,
 )
-from node.deep_learning_node.face_detection.mediapipe_facemesh.mediapipe_facemesh import (
+from ipn_editor.node.deep_learning_node.face_detection.mediapipe_facemesh.mediapipe_facemesh import (
     MediaPipeFaceMeshNonRefine,
     MediaPipeFaceMeshRefine,
 )
 
-from node.draw_node.draw_util.draw_util import draw_face_detection_info
+from ipn_editor.node.draw_node.draw_util.draw_util import draw_face_detection_info
 
 
 class Node(DpgNodeABC):

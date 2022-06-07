@@ -1,7 +1,7 @@
 import importlib.util
 
 # from motpy import Track
-from node.preview_release_node.mot.motpy.tracker import Track
+from ipn_editor.node.preview_release_node.mot.motpy.tracker import Track
 
 
 def ensure_packages_installed(packages, stop_if_some_missing: bool = True):

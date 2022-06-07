@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
+from ipn_editor.node.node_abc import DpgNodeABC
 
 
 class Node(DpgNodeABC):

@@ -2,7 +2,7 @@ import numpy as np
 
 from .kalman_filter import KalmanFilter
 # from byte_tracker.tracker import matching
-from node.preview_release_node.mot.bytetrack.tracker import matching
+from ipn_editor.node.preview_release_node.mot.bytetrack.tracker import matching
 from .basetrack import BaseTrack, TrackState
 
 

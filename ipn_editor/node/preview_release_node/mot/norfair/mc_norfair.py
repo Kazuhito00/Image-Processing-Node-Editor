@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from node.preview_release_node.mot.norfair.tracker import Detection
-from node.preview_release_node.mot.norfair.tracker import Tracker as NorfairTracker
+from ipn_editor.node.preview_release_node.mot.norfair.tracker import Detection
+from ipn_editor.node.preview_release_node.mot.norfair.tracker import Tracker as NorfairTracker
 
 
 def euclidean_distance(detection, tracked_object):

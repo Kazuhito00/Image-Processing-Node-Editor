@@ -25,7 +25,11 @@ def get_args():
     parser.add_argument(
         "--setting",
         type=str,
-        default='node_editor/setting/setting.json',
+        # get abs
+        default=os.path.abspath(os.path.join(
+            os.path.dirname(__file__),
+            'node_editor/setting/setting.json'
+        )),
     )
     parser.add_argument("--unuse_async_draw", action="store_true")
     parser.add_argument("--use_debug_print", action="store_true")
@@ -150,7 +154,7 @@ def main():
         opencv_setting_dict=opencv_setting_dict,
         menu_dict=menu_dict,
         use_debug_print=use_debug_print,
-        # node_dir=current_path + '/node',
+        node_dir=current_path + '/node',
     )
 
     # ビューポート表示

@@ -6,11 +6,11 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.monocular_depth_estimation.FSRE_Depth.fsre_depth import FSRE_Depth
-from node.deep_learning_node.monocular_depth_estimation.HR_Depth.hr_depth import HR_Depth
+from ipn_editor.node.deep_learning_node.monocular_depth_estimation.FSRE_Depth.fsre_depth import FSRE_Depth
+from ipn_editor.node.deep_learning_node.monocular_depth_estimation.HR_Depth.hr_depth import HR_Depth
 
 
 class Node(DpgNodeABC):

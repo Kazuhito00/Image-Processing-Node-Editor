@@ -5,7 +5,7 @@ from filterpy.common import Q_discrete_white_noise
 from scipy.linalg import block_diag
 
 # from motpy.core import Box, Vector
-from node.preview_release_node.mot.motpy.tracker.core import Box, Vector
+from ipn_editor.node.preview_release_node.mot.motpy.tracker.core import Box, Vector
 """ The list of model presets below is not complete, more reasonable
 options will be added in the future """
 

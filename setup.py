@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
 import re
+import os
 from os import path
 from os.path import splitext
 from os.path import basename
@@ -15,18 +16,30 @@ def get_version():
         ).group(1)
     return version
 
+def package_files(directory):
+    paths = []
+    for (path, directories, filenames) in os.walk(directory):
+        for filename in filenames:
+            paths.append(os.path.join('..', path, filename))
+    return paths
+
+extra_py_files = package_files(package_keyword)
+extra_py_files = ','.join(extra_py_files)
+
 readme_path = path.abspath(path.dirname(__file__))
 with open(path.join(readme_path, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+
+
 
 setup(
     name = "IPN-Editor",
     packages=find_packages(),
     py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/*")],
-    # py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/node/analysis_node/*")],
     package_data={  "ipn_editor": ["node_editor/font/YasashisaAntiqueFont/*",
                                       "node_editor/font/YasashisaAntiqueFont/IPAexfont00201/*",
                                       "node_editor/setting/*",
+                                      extra_py_files
     ]},
     include_package_data=True,
 

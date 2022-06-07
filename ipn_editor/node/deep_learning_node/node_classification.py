@@ -6,15 +6,15 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.classification.MobileNetV3.mobilenet_v3 import MobileNetV3
-from node.deep_learning_node.classification.EfficientNetB0.efficientnet import EfficientNetB0
+from ipn_editor.node.deep_learning_node.classification.MobileNetV3.mobilenet_v3 import MobileNetV3
+from ipn_editor.node.deep_learning_node.classification.EfficientNetB0.efficientnet import EfficientNetB0
 
-from node.deep_learning_node.classification.imagenet_class_names import imagenet_class_names
+from ipn_editor.node.deep_learning_node.classification.imagenet_class_names import imagenet_class_names
 
-from node.draw_node.draw_util.draw_util import (
+from ipn_editor.node.draw_node.draw_util.draw_util import (
     draw_classification_info,
     draw_classification_with_od_info,
 )

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from node.preview_release_node.mot.motpy.tracker import Detection, MultiObjectTracker
+from ipn_editor.node.preview_release_node.mot.motpy.tracker import Detection, MultiObjectTracker
 
 
 class Motpy(object):

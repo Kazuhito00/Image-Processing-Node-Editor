@@ -5,12 +5,12 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node.node_abc import DpgNodeABC
-from node_editor.util import convert_cv_to_dpg
+from ipn_editor.node.node_abc import DpgNodeABC
+from ipn_editor.node_editor.util import convert_cv_to_dpg
 
-from node.deep_learning_node.low_light_image_enhancement.TBEFN.tbefn import TBEFN
-from node.deep_learning_node.low_light_image_enhancement.SCI.sci import SCI
-from node.deep_learning_node.low_light_image_enhancement.AGLLNet.agllnet import AGLLNet
+from ipn_editor.node.deep_learning_node.low_light_image_enhancement.TBEFN.tbefn import TBEFN
+from ipn_editor.node.deep_learning_node.low_light_image_enhancement.SCI.sci import SCI
+from ipn_editor.node.deep_learning_node.low_light_image_enhancement.AGLLNet.agllnet import AGLLNet
 
 
 class Node(DpgNodeABC):
