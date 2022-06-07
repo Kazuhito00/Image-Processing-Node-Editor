@@ -10,8 +10,8 @@ from collections import OrderedDict
 import cv2
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import check_camera_connection
-from node_editor.node_editor import DpgNodeEditor
+from .node_editor.util import check_camera_connection
+from .node_editor.node_editor import DpgNodeEditor
 
 
 def get_args():
