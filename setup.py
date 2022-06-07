@@ -22,7 +22,11 @@ with open(path.join(readme_path, 'README.md'), encoding='utf-8') as f:
 setup(
     name = "IPN-Editor",
     packages=find_packages(),
-    py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/*.py")],
+    py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/*")],
+    package_data={  "ipn_editor": ["node_editor/font/YasashisaAntiqueFont/*"],
+                    "ipn_editor": ["node_editor/font/YasashisaAntiqueFont/IPAexfont00201/*"],
+                    "ipn_editor": ["node_editor/setting/*"],
+    },
     include_package_data=True,
 
     version = get_version(),

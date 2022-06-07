@@ -135,7 +135,9 @@ class DpgNodeEditor(object):
                                 import_path = import_path.replace('\\', '.')
                             else:
                                 import_path = import_path.replace('/', '.')
-
+                            # __init__.pyのみ除外
+                            if import_path.endswith('__init__'):
+                                continue
                             # モジュールを動的インポート
                             module = import_module(import_path)
 
