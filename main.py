@@ -6,12 +6,17 @@ import json
 import asyncio
 import argparse
 from collections import OrderedDict
+import os
 
 import cv2
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import check_camera_connection
-from node_editor.node_editor import DpgNodeEditor
+try:
+    from .node_editor.util import check_camera_connection
+    from .node_editor.node_editor import DpgNodeEditor
+except ImportError:
+    from node_editor.util import check_camera_connection
+    from node_editor.node_editor import DpgNodeEditor
 
 
 def get_args():
@@ -20,7 +25,11 @@ def get_args():
     parser.add_argument(
         "--setting",
         type=str,
-        default='node_editor/setting/setting.json',
+        # get abs
+        default=os.path.abspath(os.path.join(
+            os.path.dirname(__file__),
+            'node_editor/setting/setting.json'
+        )),
     )
     parser.add_argument("--unuse_async_draw", action="store_true")
     parser.add_argument("--use_debug_print", action="store_true")
@@ -116,9 +125,11 @@ def main():
     )
 
     # デフォルトフォント変更
+    # このファイルのパスを取得
+    current_path = os.path.dirname(os.path.abspath(__file__))
     with dpg.font_registry():
         with dpg.font(
-                'node_editor/font/YasashisaAntiqueFont/07YasashisaAntique.otf',
+                current_path + '/node_editor/font/YasashisaAntiqueFont/07YasashisaAntique.otf',
                 16,
         ) as default_font:
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Japanese)
@@ -135,12 +146,14 @@ def main():
         'OtherNode': 'other_node',
         'PreviewReleaseNode': 'preview_release_node'
     })
+    # print
     node_editor = DpgNodeEditor(
         width=editor_width - 15,
         height=editor_height - 40,
         opencv_setting_dict=opencv_setting_dict,
         menu_dict=menu_dict,
         use_debug_print=use_debug_print,
+        node_dir=current_path + '/node',
     )
 
     # ビューポート表示
