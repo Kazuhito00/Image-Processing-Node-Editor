@@ -41,7 +41,6 @@ class DpgNodeEditor(object):
         menu_dict=None,
         use_debug_print=False,
     ):
-        print(node_dir)
         # 各種初期化
         self._node_id = 0
         self._node_instance_list = {}

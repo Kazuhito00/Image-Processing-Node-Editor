@@ -127,7 +127,6 @@ def main():
     # デフォルトフォント変更
     # このファイルのパスを取得
     current_path = os.path.dirname(os.path.abspath(__file__))
-    print("----- current_path: {}".format(current_path))
     with dpg.font_registry():
         with dpg.font(
                 current_path + '/node_editor/font/YasashisaAntiqueFont/07YasashisaAntique.otf',
