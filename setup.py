@@ -23,6 +23,7 @@ setup(
     name = "IPN-Editor",
     packages=find_packages(),
     py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/*")],
+    # py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/node/analysis_node/*")],
     package_data={  "ipn_editor": ["node_editor/font/YasashisaAntiqueFont/*"],
                     "ipn_editor": ["node_editor/font/YasashisaAntiqueFont/IPAexfont00201/*"],
                     "ipn_editor": ["node_editor/setting/*"],

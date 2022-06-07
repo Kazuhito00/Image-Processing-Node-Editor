@@ -41,6 +41,7 @@ class DpgNodeEditor(object):
         menu_dict=None,
         use_debug_print=False,
     ):
+        print(node_dir)
         # 各種初期化
         self._node_id = 0
         self._node_instance_list = {}
@@ -135,6 +136,10 @@ class DpgNodeEditor(object):
                                 import_path = import_path.replace('\\', '.')
                             else:
                                 import_path = import_path.replace('/', '.')
+                            # 最後から3番目までを取得
+                            # import_path = import_path.split('.')
+                            # import_path = '.' + '.'.join(import_path[-3:])
+                            # print(import_path)
                             # __init__.pyのみ除外
                             if import_path.endswith('__init__'):
                                 continue

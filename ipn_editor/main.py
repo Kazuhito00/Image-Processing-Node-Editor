@@ -144,7 +144,6 @@ def main():
         'PreviewReleaseNode': 'preview_release_node'
     })
     # print
-    print(current_path+'/node')
     node_editor = DpgNodeEditor(
         width=editor_width - 15,
         height=editor_height - 40,
