@@ -1,6 +1,9 @@
-import setuptools
+from setuptools import setup, find_packages
 import re
 from os import path
+from os.path import splitext
+from os.path import basename
+from glob import glob
 
 package_keyword = "ipn_editor"
 
@@ -16,9 +19,11 @@ readme_path = path.abspath(path.dirname(__file__))
 with open(path.join(readme_path, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-setuptools.setup(
+setup(
     name = "IPN-Editor",
-    packages = [package_keyword],
+    packages=find_packages(),
+    py_modules=[splitext(basename(path))[0] for path in glob(package_keyword + "/*.py")],
+    include_package_data=True,
 
     version = get_version(),
     author = "Kazuhito00",
