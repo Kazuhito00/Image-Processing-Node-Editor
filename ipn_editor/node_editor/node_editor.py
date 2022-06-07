@@ -137,9 +137,13 @@ class DpgNodeEditor(object):
                             else:
                                 import_path = import_path.replace('/', '.')
                             # 最後から3番目までを取得
-                            import_path = import_path.split('.')
-                            # import_path = '.' + '.'.join(import_path[-3:])
-                            import_path = 'ipn_editor.' + '.'.join(import_path[-3:])
+                            # check site-packages including
+                            if import_path.find('site-packages') != -1:
+                                import_path = import_path.split('.')
+                                import_path = 'ipn_editor.' + '.'.join(import_path[-3:])
+                            else:
+                                import_path = import_path.split('.')
+                                import_path = '.'.join(import_path[-3:])
                             # __init__.pyのみ除外
                             if import_path.endswith('__init__'):
                                 continue
