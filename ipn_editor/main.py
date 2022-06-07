@@ -105,7 +105,7 @@ def main():
         video_capture = cv2.VideoCapture(device_no)
         video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, webcam_width)
         video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, webcam_height)
-        camera_capture_list.append(cv2.VideoCapture(device_no))
+        camera_capture_list.append(video_capture)
 
     # カメラ設定保持
     opencv_setting_dict['device_no_list'] = device_no_list
