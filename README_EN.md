@@ -37,6 +37,7 @@ Please prepare the environment by one of the following methods.<br>
 * Run the script directly
     1. Clone repository<br>`git clone https://github.com/Kazuhito00/Image-Processing-Node-Editor`
     1. Install package <br>`pip install -r requirements.txt`  
+    1. Run "main.py" <br>`python main.py`
 * Use Docker
     1. See [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu)
 * Use pip installation
