@@ -24,9 +24,11 @@ cython-bbox     0.1.3    or later ※ByteTrackノード実行に必要
 rich            12.4.4   or later ※Norfairノード実行に必要
 ```
 
-※Windowsでcython_bbox のインストールが失敗する場合は、GitHubからのインストールをお試しください(2022/06/05時点)<br>
+※Windowsでcython_bbox のインストールが失敗する場合は、numpy、Cythonをインストールしてから<br>　cython-bboxはGitHubからのインストールをお試しください(2022/06/05時点)<br>
 
 ```
+pip install numpy
+pip install Cython
 pip install -e git+https://github.com/samson-wang/cython_bbox.git#egg=cython-bbox
 ```
 
