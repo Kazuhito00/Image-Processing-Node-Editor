@@ -26,10 +26,9 @@ def get_args():
         "--setting",
         type=str,
         # get abs
-        default=os.path.abspath(os.path.join(
-            os.path.dirname(__file__),
-            'node_editor/setting/setting.json'
-        )),
+        default=os.path.abspath(
+            os.path.join(os.path.dirname(__file__),
+                         'node_editor/setting/setting.json')),
     )
     parser.add_argument("--unuse_async_draw", action="store_true")
     parser.add_argument("--use_debug_print", action="store_true")
@@ -49,7 +48,12 @@ def async_main(node_editor):
         update_node_info(node_editor, node_image_dict, node_result_dict)
 
 
-def update_node_info(node_editor, node_image_dict, node_result_dict):
+def update_node_info(
+    node_editor,
+    node_image_dict,
+    node_result_dict,
+    mode_async=True,
+):
     # ノードリスト取得
     node_list = node_editor.get_node_list()
 
@@ -68,16 +72,24 @@ def update_node_info(node_editor, node_image_dict, node_result_dict):
         node_instance = node_editor.get_node_instance(node_name)
 
         # 指定ノードの情報を更新
-        try:
+        if mode_async:
+            try:
+                image, result = node_instance.update(
+                    node_id,
+                    connection_list,
+                    node_image_dict,
+                    node_result_dict,
+                )
+            except Exception as e:
+                print(e)
+                sys.exit()
+        else:
             image, result = node_instance.update(
                 node_id,
                 connection_list,
                 node_image_dict,
                 node_result_dict,
             )
-        except Exception as e:
-            print(e)
-            sys.exit()
         node_image_dict[node_id_name] = copy.deepcopy(image)
         node_result_dict[node_id_name] = copy.deepcopy(result)
 
@@ -129,7 +141,8 @@ def main():
     current_path = os.path.dirname(os.path.abspath(__file__))
     with dpg.font_registry():
         with dpg.font(
-                current_path + '/node_editor/font/YasashisaAntiqueFont/07YasashisaAntique.otf',
+                current_path +
+                '/node_editor/font/YasashisaAntiqueFont/07YasashisaAntique.otf',
                 16,
         ) as default_font:
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Japanese)
@@ -170,7 +183,12 @@ def main():
         node_image_dict = {}
         node_result_dict = {}
         while dpg.is_dearpygui_running():
-            update_node_info(node_editor, node_image_dict, node_result_dict)
+            update_node_info(
+                node_editor,
+                node_image_dict,
+                node_result_dict,
+                mode_async=False,
+            )
             dpg.render_dearpygui_frame()
 
     # 終了処理
