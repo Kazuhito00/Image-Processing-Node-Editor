@@ -124,25 +124,27 @@ class Node(DpgNodeABC):
 
         # 描画
         if frame is not None:
+            rec_frame = copy.deepcopy(frame)
             # 録画中
             if tag_node_name in self._video_writer_dict:
                 # 動画書き出し
-                writer_frame = cv2.resize(frame, (writer_width, writer_height))
+                writer_frame = cv2.resize(rec_frame,
+                                          (writer_width, writer_height))
                 self._video_writer_dict[tag_node_name].write(writer_frame)
 
                 # 録画表示
-                frame = cv2.circle(frame, (80, 80),
-                                   50, (0, 0, 255),
-                                   thickness=-1)
-                frame = cv2.putText(frame,
-                                    'Rec', (130, 120),
-                                    cv2.FONT_HERSHEY_SIMPLEX,
-                                    4.0, (0, 0, 255),
-                                    thickness=10)
+                rec_frame = cv2.circle(rec_frame, (80, 80),
+                                       50, (0, 0, 255),
+                                       thickness=-1)
+                rec_frame = cv2.putText(rec_frame,
+                                        'Rec', (130, 120),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        4.0, (0, 0, 255),
+                                        thickness=10)
 
             # 画面反映
             texture = convert_cv_to_dpg(
-                frame,
+                rec_frame,
                 small_window_w,
                 small_window_h,
             )
