@@ -27,6 +27,8 @@ rich            12.4.4   or later ※Required to run MOT(Norfair) node
 *If the installation of cython_bbox fails on Windows, please try the installation from GitHub (as of 2022/06/05).<br>
 
 ```
+pip install numpy
+pip install Cython
 pip install -e git+https://github.com/samson-wang/cython_bbox.git#egg=cython-bbox
 ```
 
