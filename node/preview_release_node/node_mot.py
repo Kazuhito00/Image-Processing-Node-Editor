@@ -195,14 +195,13 @@ class Node(DpgNodeABC):
                 od_class_names = node_result.get('class_names', [])
 
                 track_ids, t_bboxes, t_scores, t_class_ids = [], [], [], []
-                if len(od_bboxes) > 0:
-                    track_ids, t_bboxes, t_scores, t_class_ids = self._model_instance[
-                        model_name_with_provider](
-                            frame,
-                            od_bboxes,
-                            od_scores,
-                            od_class_ids,
-                        )
+                track_ids, t_bboxes, t_scores, t_class_ids = self._model_instance[
+                    model_name_with_provider](
+                        frame,
+                        od_bboxes,
+                        od_scores,
+                        od_class_ids,
+                    )
 
                 if node_id not in self._track_id_dict:
                     self._track_id_dict[node_id] = {}

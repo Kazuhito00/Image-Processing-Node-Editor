@@ -261,6 +261,12 @@ class Node(DpgNodeABC):
                 result['class_ids'] = class_ids.tolist()
                 result['class_names'] = class_name_dict
                 result['score_th'] = score_th
+            else:
+                result['bboxes'] = []
+                result['scores'] = []
+                result['class_ids'] = []
+                result['class_names'] = class_name_dict
+                result['score_th'] = score_th
 
         # 計測終了
         if frame is not None and use_pref_counter:
