@@ -41,6 +41,8 @@ Please prepare the environment by one of the following methods.<br>
 * Use Docker
     1. See [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu)
 * Use pip installation
+    1. Install build tools<br>Windows：https://visualstudio.microsoft.com/ja/visual-cpp-build-tools/<br>Ubuntu：`sudo apt-get install build-essential libssl-dev libffi-dev python3-dev`
+    1. Install Numpy, Cython, wheel<Br>`pip install Cython numpy wheel`
     1. Specify the GitHub repository and pip install<br>`pip install git+https://github.com/Kazuhito00/Image-Processing-Node-Editor`
     1. Start the application with the following command<br>`ipn-editor`  
 
