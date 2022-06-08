@@ -32,6 +32,17 @@ pip install Cython
 pip install -e git+https://github.com/samson-wang/cython_bbox.git#egg=cython-bbox
 ```
 
+# Installation
+Please prepare the environment by one of the following methods.<br>
+* Run the script directly
+    1. Clone repository<br>`git clone https://github.com/Kazuhito00/Image-Processing-Node-Editor`
+    1. Install package <br>`pip install -r requirements.txt`  
+* Use Docker
+    1. See [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu)
+* Use pip installation
+    1. Specify the GitHub repository and pip install<br>`pip install git+https://github.com/Kazuhito00/Image-Processing-Node-Editor`
+    1. Start the application with the following command<br>`ipn-editor`  
+
 # Usage
 Here's how to run the app.
 ```bash
