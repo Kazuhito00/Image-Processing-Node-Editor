@@ -26,7 +26,7 @@ docker build docker/nvidia-gpu -t ipn_editor
 ```bash
 # cd /path-to-Image-Processing-Node-Editor
 xhost +
-docker run --rm -it　--privileged --device /dev/video0:/dev/video0:mwr -e DISPLAY=$DISPLAY -v $(pwd):/workspace --gpus all -v /tmp/.X11-unix:/tmp/.X11-unix ipn_editor
+docker run --rm -it --privileged --device /dev/video0:/dev/video0:mwr -e DISPLAY=$DISPLAY -v $(pwd):/workspace --gpus all -v /tmp/.X11-unix:/tmp/.X11-unix ipn_editor
 # 勝手にウィンドウが開きます
 ```
 
