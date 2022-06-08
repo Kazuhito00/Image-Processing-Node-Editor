@@ -37,6 +37,7 @@ pip install -e git+https://github.com/samson-wang/cython_bbox.git#egg=cython-bbo
 * スクリプトを直接実行
     1. リポジトリをクローン<br>`git clone https://github.com/Kazuhito00/Image-Processing-Node-Editor`
     1. パッケージをインストール <br>`pip install -r requirements.txt`  
+    1. 「main.py」を実行<br>`python main.py`
 * Dockerを利用
     1. [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu) を参照
 * pipインストールを利用
