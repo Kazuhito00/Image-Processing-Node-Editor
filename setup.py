@@ -45,7 +45,6 @@ setup(
 
     version = get_version(),
     author = "Kazuhito00",
-    # author_email = "ray255ar@gmail.com",
 
     url = "https://github.com/Kazuhito00/Image-Processing-Node-Editor",
     description = "Node editor-based image processing application for use in verification and comparison of processing",
