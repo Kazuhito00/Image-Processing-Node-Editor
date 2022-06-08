@@ -33,7 +33,7 @@ with open(path.join(readme_path, 'README.md'), encoding='utf-8') as f:
 
 
 setup(
-    name = "IPN-Editor",
+    name = "ipn-editor",
     packages=find_packages(),
     py_modules=[splitext(basename(path))[0] for path in glob("./*")],
     package_data={  "node_editor": ["font/YasashisaAntiqueFont/*",
