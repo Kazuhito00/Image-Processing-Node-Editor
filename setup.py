@@ -54,7 +54,7 @@ setup(
     keywords = 'opencv node-editor onnx onnxruntime dearpygui',
     license = "Apache-2.0 license",
     python_requires = ">=3.8",
-    install_requires = ["numpy", "Cython", "opencv-python==4.5.5.64", "onnxruntime-gpu==1.11.1", "dearpygui==1.6.2", "mediapipe==0.8.10", "protobuf==3.20.0", "filterpy==1.4.5", "lap==0.4.0", "Cython==0.29.30", "cython-bbox==0.1.3", "rich==12.4.4"],
+    install_requires = ["numpy==1.22.4", "Cython==0.29.30", "opencv-python==4.5.5.64", "onnxruntime-gpu==1.11.1", "dearpygui==1.6.2", "mediapipe==0.8.10", "protobuf==3.20.0", "filterpy==1.4.5", "lap==0.4.0", "Cython==0.29.30", "cython-bbox==0.1.3", "rich==12.4.4"],
     classifiers = [
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.8",
