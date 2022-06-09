@@ -40,7 +40,7 @@ Please prepare the environment by one of the following methods.<br>
     1. Run "main.py" <br>`python main.py`
 * Use Docker
     1. See [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu)
-* Use pip installation
+* Use pip installation<br><b>※The installed directory names will be "node" and "node_editor", so I plan to fix them in the future.<br>→When using pip, it is strongly recommended to install in a virtual environment such as venv.</b>
     1. Install build tools<br>Windows：https://visualstudio.microsoft.com/ja/visual-cpp-build-tools/<br>Ubuntu：`sudo apt-get install build-essential libssl-dev libffi-dev python3-dev`
     1. Install Numpy, Cython, wheel<Br>`pip install Cython numpy wheel`
     1. Specify the GitHub repository and pip install<br>`pip install git+https://github.com/Kazuhito00/Image-Processing-Node-Editor`
