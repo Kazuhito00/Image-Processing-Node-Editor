@@ -61,6 +61,8 @@ def create_image_dict(
     resize_height,
     draw_info_on_result,
 ):
+    frame_exist_flag = False
+
     # 初期化用黒画像
     black_image = np.zeros((resize_height, resize_width, 3)).astype(np.uint8)
 
@@ -75,6 +77,8 @@ def create_image_dict(
                 frame = draw_info(image_node_name, node_result, frame)
             resize_frame = cv2.resize(frame, (resize_width, resize_height))
             frame_dict[slot_num - index - 1] = copy.deepcopy(resize_frame)
+
+            frame_exist_flag = True
         else:
             frame_dict[slot_num - index - 1] = copy.deepcopy(black_image)
 
@@ -82,6 +86,9 @@ def create_image_dict(
     for index in range(display_num_list[slot_num - 1]):
         if frame_dict.get(index, None) is None:
             frame_dict[index] = copy.deepcopy(black_image)
+
+    if not frame_exist_flag:
+        frame_dict = None
 
     return frame_dict
 
@@ -238,7 +245,7 @@ class Node(DpgNodeABC):
         # 結合画像生成
         frame = None
         display_frame = None
-        if len(connection_info_src_dict) > 0:
+        if len(connection_info_src_dict) > 0 and frame_dict is not None:
             frame, display_frame = create_concat_image(frame_dict, slot_num)
 
         # 描画
