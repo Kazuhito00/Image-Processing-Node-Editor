@@ -104,7 +104,7 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             <img src="https://user-images.githubusercontent.com/37477845/172031118-9382a9f6-d45c-4d39-ae82-59575a109664.png" loading="lazy" width="300px">
         </td>
         <td width="760">
-            動画(bmp, jpg, png, gif)を読み込み、フレーム毎の画像を出力するノード<br>
+            動画(mp4, avi)を読み込み、フレーム毎の画像を出力するノード<br>
             「Select Movie」ボタンでファイルダイアログをオープン<br>
             動画をループ再生する場合は「Loop」にチェック<br>
             「Skip Rate」は動画読み込み時に、何フレームに1回出力するか指定する数値
@@ -135,7 +135,7 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
     </tr>
     <tr>
         <td width="200">
-            Int Value
+            Float Value
         </td>
         <td width="320">
             <img src="https://user-images.githubusercontent.com/37477845/172031323-98ae0273-7083-48d0-9ef2-f02af7fde482.png" loading="lazy" width="300px">
