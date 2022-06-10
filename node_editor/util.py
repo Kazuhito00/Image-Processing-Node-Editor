@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import cv2
 import numpy as np
+import dearpygui.dearpygui as dpg
 
 
 def convert_cv_to_dpg(image, width, height):
@@ -34,3 +35,15 @@ def check_camera_connection(max_device_count=4, is_debug=False):
                 print(' -> None')
 
     return device_no_list
+
+
+def dpg_set_value(tag, value):
+    if dpg.does_item_exist(tag):
+        dpg.set_value(tag, value)
+
+
+def dpg_get_value(tag):
+    value = None
+    if dpg.does_item_exist(tag):
+        value = dpg.get_value(tag)
+    return value

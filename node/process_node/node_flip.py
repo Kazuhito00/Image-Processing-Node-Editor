@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -168,8 +170,8 @@ class Node(DpgNodeABC):
         frame = node_image_dict.get(connection_info_src, None)
 
         # 反転設定
-        hflip_flag = dpg.get_value(tag_node_input02_value_name)
-        vflip_flag = dpg.get_value(tag_node_input03_value_name)
+        hflip_flag = dpg_get_value(tag_node_input02_value_name)
+        vflip_flag = dpg_get_value(tag_node_input03_value_name)
 
         # 計測開始
         if frame is not None and use_pref_counter:
@@ -183,7 +185,7 @@ class Node(DpgNodeABC):
         if frame is not None and use_pref_counter:
             elapsed_time = time.perf_counter() - start_time
             elapsed_time = int(elapsed_time * 1000)
-            dpg.set_value(output_value02_tag,
+            dpg_set_value(output_value02_tag,
                           str(elapsed_time).zfill(4) + 'ms')
 
         # 描画
@@ -193,7 +195,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 
@@ -207,8 +209,8 @@ class Node(DpgNodeABC):
 
         pos = dpg.get_item_pos(tag_node_name)
 
-        hflip_flag = dpg.get_value(tag_node_input02_value_name)
-        vflip_flag = dpg.get_value(tag_node_input03_value_name)
+        hflip_flag = dpg_get_value(tag_node_input02_value_name)
+        vflip_flag = dpg_get_value(tag_node_input03_value_name)
 
         setting_dict = {}
         setting_dict['ver'] = self._ver
@@ -226,5 +228,5 @@ class Node(DpgNodeABC):
         hflip_flag = setting_dict[tag_node_input02_value_name]
         vflip_flag = setting_dict[tag_node_input03_value_name]
 
-        dpg.set_value(tag_node_input02_value_name, hflip_flag)
-        dpg.set_value(tag_node_input03_value_name, vflip_flag)
+        dpg_set_value(tag_node_input02_value_name, hflip_flag)
+        dpg_set_value(tag_node_input03_value_name, vflip_flag)

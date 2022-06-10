@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -148,10 +150,10 @@ class Node(DpgNodeABC):
                 source_tag = connection_info[0] + 'Value'
                 destination_tag = connection_info[1] + 'Value'
                 # 値更新
-                input_value = round(float(dpg.get_value(source_tag)), 3)
+                input_value = round(float(dpg_get_value(source_tag)), 3)
                 input_value = max([self._min_val, input_value])
                 input_value = min([self._max_val, input_value])
-                dpg.set_value(destination_tag, input_value)
+                dpg_set_value(destination_tag, input_value)
             if connection_type == self.TYPE_IMAGE:
                 # 画像取得元のノード名(ID付き)を取得
                 connection_info_src = connection_info[0]
@@ -162,7 +164,7 @@ class Node(DpgNodeABC):
         frame = node_image_dict.get(connection_info_src, None)
 
         # スケールファクタ
-        gamma = float(dpg.get_value(input_value02_tag))
+        gamma = float(dpg_get_value(input_value02_tag))
 
         # 計測開始
         if frame is not None and use_pref_counter:
@@ -175,7 +177,7 @@ class Node(DpgNodeABC):
         if frame is not None and use_pref_counter:
             elapsed_time = time.perf_counter() - start_time
             elapsed_time = int(elapsed_time * 1000)
-            dpg.set_value(output_value02_tag,
+            dpg_set_value(output_value02_tag,
                           str(elapsed_time).zfill(4) + 'ms')
 
         # 描画
@@ -185,7 +187,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 
@@ -196,7 +198,7 @@ class Node(DpgNodeABC):
         tag_node_name = str(node_id) + ':' + self.node_tag
         input_value02_tag = tag_node_name + ':' + self.TYPE_FLOAT + ':Input02Value'
 
-        kernel_size = dpg.get_value(input_value02_tag)
+        kernel_size = dpg_get_value(input_value02_tag)
 
         pos = dpg.get_item_pos(tag_node_name)
 
@@ -213,4 +215,4 @@ class Node(DpgNodeABC):
 
         kernel_size = int(setting_dict[input_value02_tag])
 
-        dpg.set_value(input_value02_tag, kernel_size)
+        dpg_set_value(input_value02_tag, kernel_size)

@@ -5,6 +5,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -177,9 +179,9 @@ class Node(DpgNodeABC):
         video_capture = self._video_capture.get(str(node_id), None)
 
         # ループ要否
-        loop_flag = dpg.get_value(tag_node_input02_value_name)
+        loop_flag = dpg_get_value(tag_node_input02_value_name)
         # スキップ割合
-        skip_rate = int(dpg.get_value(tag_node_input03_value_name))
+        skip_rate = int(dpg_get_value(tag_node_input03_value_name))
 
         # 計測開始
         if video_capture is not None and use_pref_counter:
@@ -201,6 +203,8 @@ class Node(DpgNodeABC):
                         self._prev_movie_filepath.pop(str(node_id))
                         self._video_capture.pop(str(node_id))
 
+                        break
+
                 self._frame_count[str(node_id)] += 1
                 if (self._frame_count[str(node_id)] % skip_rate) == 0:
                     break
@@ -209,7 +213,7 @@ class Node(DpgNodeABC):
         if video_capture is not None and use_pref_counter:
             elapsed_time = time.perf_counter() - start_time
             elapsed_time = int(elapsed_time * 1000)
-            dpg.set_value(output_value02_tag,
+            dpg_set_value(output_value02_tag,
                           str(elapsed_time).zfill(4) + 'ms')
 
         # 描画
@@ -219,7 +223,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 
@@ -233,8 +237,8 @@ class Node(DpgNodeABC):
 
         pos = dpg.get_item_pos(tag_node_name)
 
-        loop_flag = dpg.get_value(tag_node_input02_value_name)
-        skip_rate = int(dpg.get_value(tag_node_input03_value_name))
+        loop_flag = dpg_get_value(tag_node_input02_value_name)
+        skip_rate = int(dpg_get_value(tag_node_input03_value_name))
 
         setting_dict = {}
         setting_dict['ver'] = self._ver
@@ -252,8 +256,8 @@ class Node(DpgNodeABC):
         loop_flag = setting_dict[tag_node_input02_value_name]
         skip_rate = int(setting_dict[tag_node_input03_value_name])
 
-        dpg.set_value(tag_node_input02_value_name, loop_flag)
-        dpg.set_value(tag_node_input03_value_name, skip_rate)
+        dpg_set_value(tag_node_input02_value_name, loop_flag)
+        dpg_set_value(tag_node_input03_value_name, skip_rate)
 
     def _callback_file_select(self, sender, data):
         if data['file_name'] != '.':

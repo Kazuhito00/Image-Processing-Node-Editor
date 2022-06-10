@@ -5,6 +5,8 @@ from collections import deque
 
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 
 
@@ -123,7 +125,7 @@ class Node(DpgNodeABC):
                 destination_tag = connection_info[1] + 'Value'
 
                 # 値更新
-                input_value = dpg.get_value(source_tag)
+                input_value = dpg_get_value(source_tag)
 
                 # 数値のみを抽出
                 input_value = re.sub(r'\D', '', input_value)
@@ -159,7 +161,7 @@ class Node(DpgNodeABC):
                         4) + 'ms)'
 
                     # テキスト更新
-                    dpg.set_value(destination_tag, text)
+                    dpg_set_value(destination_tag, text)
 
                     # 全スロットの合計時間
                     total_elapsed_time += average_elapsed_time
@@ -175,8 +177,8 @@ class Node(DpgNodeABC):
                 text += '{:.2f}'.format(fps).zfill(3)
             # text += ' (' + '{:.0f}'.format(total_elapsed_time).zfill(4) + 'ms)'
 
-            dpg.set_value(output_value01_tag, text)
-            dpg.set_value(
+            dpg_set_value(output_value01_tag, text)
+            dpg_set_value(
                 output_value02_tag,
                 '{:.0f}'.format(total_elapsed_time).zfill(4) + 'ms',
             )

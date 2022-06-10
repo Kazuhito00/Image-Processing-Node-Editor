@@ -5,6 +5,8 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -181,10 +183,10 @@ class Node(DpgNodeABC):
                 source_tag = connection_info[0] + 'Value'
                 destination_tag = connection_info[1] + 'Value'
                 # 値更新
-                input_value = int(dpg.get_value(source_tag))
+                input_value = int(dpg_get_value(source_tag))
                 input_value = max([self._min_val, input_value])
                 input_value = min([self._max_val, input_value])
-                dpg.set_value(destination_tag, input_value)
+                dpg_set_value(destination_tag, input_value)
             if connection_type == self.TYPE_IMAGE:
                 # 画像取得元のノード名(ID付き)を取得
                 connection_info_src = connection_info[0]
@@ -195,10 +197,10 @@ class Node(DpgNodeABC):
         frame = node_image_dict.get(connection_info_src, None)
 
         # CPU/GPU選択状態取得
-        provider = dpg.get_value(tag_provider_select_value_name)
+        provider = dpg_get_value(tag_provider_select_value_name)
 
         # モデル情報取得
-        model_name = dpg.get_value(input_value02_tag)
+        model_name = dpg_get_value(input_value02_tag)
         model_path = self._model_path_setting[model_name]
         model_class = self._model_class[model_name]
 
@@ -229,7 +231,7 @@ class Node(DpgNodeABC):
         if frame is not None and use_pref_counter:
             elapsed_time = time.perf_counter() - start_time
             elapsed_time = int(elapsed_time * 1000)
-            dpg.set_value(output_value02_tag,
+            dpg_set_value(output_value02_tag,
                           str(elapsed_time).zfill(4) + 'ms')
 
         # 描画
@@ -239,7 +241,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 
@@ -251,7 +253,7 @@ class Node(DpgNodeABC):
         input_value02_tag = tag_node_name + ':' + self.TYPE_TEXT + ':Input02Value'
 
         # 選択モデル
-        model_name = dpg.get_value(input_value02_tag)
+        model_name = dpg_get_value(input_value02_tag)
 
         pos = dpg.get_item_pos(tag_node_name)
 
@@ -268,4 +270,4 @@ class Node(DpgNodeABC):
 
         model_name = setting_dict[input_value02_tag]
 
-        dpg.set_value(input_value02_tag, model_name)
+        dpg_set_value(input_value02_tag, model_name)

@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -128,7 +130,7 @@ class Node(DpgNodeABC):
             connection_info_src = ':'.join(connection_info_src)
 
         # ON/OFF選択状態取得
-        switch_status = dpg.get_value(tag_switch_select_value_name)
+        switch_status = dpg_get_value(tag_switch_select_value_name)
 
         # 画像取得
         frame = None
@@ -145,7 +147,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 

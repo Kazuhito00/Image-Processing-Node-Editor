@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 
 
@@ -128,15 +130,16 @@ class Node(DpgNodeABC):
             r_histgram = cv2.calcHist([frame], [2], None, [256], [0, 256])
 
             # ヒストグラム反映
-            dpg.set_value(tag_node_input01_value_name + 'line_b',
+            dpg_set_value(tag_node_input01_value_name + 'line_b',
                           [self._default_xdata, b_histgram.T[0]])
-            dpg.set_value(tag_node_input01_value_name + 'line_g',
+            dpg_set_value(tag_node_input01_value_name + 'line_g',
                           [self._default_xdata, g_histgram.T[0]])
-            dpg.set_value(tag_node_input01_value_name + 'line_r',
+            dpg_set_value(tag_node_input01_value_name + 'line_r',
                           [self._default_xdata, r_histgram.T[0]])
-            dpg.set_axis_limits(
-                tag_node_input01_value_name + 'yaxis', 0,
-                int(np.sum(b_histgram.T[0]) / self._yaxis_divide_value))
+            if dpg.does_item_exist(tag_node_input01_value_name + 'yaxis'):
+                dpg.set_axis_limits(
+                    tag_node_input01_value_name + 'yaxis', 0,
+                    int(np.sum(b_histgram.T[0]) / self._yaxis_divide_value))
 
             result = {}
             result['r_histgram'] = list(r_histgram.T[0])

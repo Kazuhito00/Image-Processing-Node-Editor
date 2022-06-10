@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 
 
@@ -69,7 +71,7 @@ class Node(DpgNodeABC):
         tag_node_name = str(node_id) + ':' + self.node_tag
         output_value_tag = tag_node_name + ':' + self.TYPE_INT + ':Output01Value'
 
-        output_value = round((dpg.get_value(output_value_tag)), 3)
+        output_value = round((dpg_get_value(output_value_tag)), 3)
 
         pos = dpg.get_item_pos(tag_node_name)
 
@@ -86,4 +88,4 @@ class Node(DpgNodeABC):
 
         output_value = float(setting_dict[output_value_tag])
 
-        dpg.set_value(output_value_tag, output_value)
+        dpg_set_value(output_value_tag, output_value)

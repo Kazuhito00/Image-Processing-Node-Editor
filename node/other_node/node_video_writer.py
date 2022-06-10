@@ -8,6 +8,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -148,7 +150,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(input_value01_tag, texture)
+            dpg_set_value(input_value01_tag, texture)
         else:
             label = dpg.get_item_label(tag_node_button_value_name)
             if label == self._stop_label and self._prev_frame_flag:
@@ -162,7 +164,7 @@ class Node(DpgNodeABC):
                     small_window_w,
                     small_window_h,
                 )
-                dpg.set_value(input_value01_tag, texture)
+                dpg_set_value(input_value01_tag, texture)
 
         if frame is not None:
             self._prev_frame_flag = True

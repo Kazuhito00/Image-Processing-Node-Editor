@@ -4,6 +4,9 @@ import time
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
@@ -117,7 +120,7 @@ class Node(DpgNodeABC):
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
 
         # カメラNo取得
-        camera_no = dpg.get_value(input_value01_tag)
+        camera_no = dpg_get_value(input_value01_tag)
 
         # VideoCapture()インスタンス取得
         camera_capture = None
@@ -141,7 +144,7 @@ class Node(DpgNodeABC):
         if camera_no != '' and use_pref_counter:
             elapsed_time = time.perf_counter() - start_time
             elapsed_time = int(elapsed_time * 1000)
-            dpg.set_value(output_value02_tag,
+            dpg_set_value(output_value02_tag,
                           str(elapsed_time).zfill(4) + 'ms')
 
         # 描画
@@ -151,7 +154,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 

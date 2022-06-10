@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
+from node_editor.util import dpg_get_value, dpg_set_value
+
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 from node.draw_node.draw_util.draw_util import draw_info
@@ -182,15 +184,15 @@ class Node(DpgNodeABC):
                 source_tag = connection_info[0] + 'Value'
                 destination_tag = connection_info[1] + 'Value'
                 # 値更新
-                input_value = dpg.get_value(source_tag)
-                dpg.set_value(destination_tag, input_value)
+                input_value = dpg_get_value(source_tag)
+                dpg_set_value(destination_tag, input_value)
             if connection_type == self.TYPE_TIME_MS:
                 # 接続タグ取得
                 source_tag = connection_info[0] + 'Value'
                 destination_tag = connection_info[1] + 'Value'
                 # 値更新
-                input_value = (dpg.get_value(source_tag))
-                dpg.set_value(destination_tag, input_value)
+                input_value = (dpg_get_value(source_tag))
+                dpg_set_value(destination_tag, input_value)
 
                 connect_elapsed_time_flag = True
             if connection_type == self.TYPE_IMAGE:
@@ -207,8 +209,8 @@ class Node(DpgNodeABC):
             frame = draw_info(node_name, node_result, frame)
 
         # テキスト、色、経過時間
-        text = dpg.get_value(input_value02_tag)
-        color = dpg.get_value(tag_color_edit_value_name)[:3]
+        text = dpg_get_value(input_value02_tag)
+        color = dpg_get_value(tag_color_edit_value_name)[:3]
         color = (
             int(round(color[2], 0)),
             int(round(color[1], 0)),
@@ -216,7 +218,7 @@ class Node(DpgNodeABC):
         )
         elapsed_time_text = ''
         if connect_elapsed_time_flag:
-            elapsed_time_text = dpg.get_value(input_value03_tag)
+            elapsed_time_text = dpg_get_value(input_value03_tag)
 
         if frame is not None:
             frame = image_process(frame, text, elapsed_time_text, color)
@@ -228,7 +230,7 @@ class Node(DpgNodeABC):
                 small_window_w,
                 small_window_h,
             )
-            dpg.set_value(output_value01_tag, texture)
+            dpg_set_value(output_value01_tag, texture)
 
         return frame, None
 
@@ -240,8 +242,8 @@ class Node(DpgNodeABC):
         input_value02_tag = tag_node_name + ':' + self.TYPE_TEXT + ':Input02Value'
         tag_color_edit_value_name = tag_node_name + ':' + self.TYPE_TEXT + ':ColorEditValue'
 
-        text = dpg.get_value(input_value02_tag)
-        color = dpg.get_value(tag_color_edit_value_name)
+        text = dpg_get_value(input_value02_tag)
+        color = dpg_get_value(tag_color_edit_value_name)
 
         pos = dpg.get_item_pos(tag_node_name)
 
@@ -261,5 +263,5 @@ class Node(DpgNodeABC):
         text = setting_dict[input_value02_tag]
         color = setting_dict[tag_color_edit_value_name]
 
-        dpg.set_value(input_value02_tag, text)
-        dpg.set_value(tag_color_edit_value_name, color)
+        dpg_set_value(input_value02_tag, text)
+        dpg_set_value(tag_color_edit_value_name, color)
