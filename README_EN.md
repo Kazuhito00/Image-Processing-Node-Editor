@@ -104,7 +104,7 @@ Read the node settings(json file) output by Export<br>
             <img src="https://user-images.githubusercontent.com/37477845/172031118-9382a9f6-d45c-4d39-ae82-59575a109664.png" loading="lazy" width="300px">
         </td>
         <td width="760">
-            A node that reads a video (bmp, jpg, png, gif) and outputs an image for each frame<br>
+            A node that reads a video (mp4, avi) and outputs an image for each frame<br>
             Open the file dialog with the "Select Movie" button<br>
             Check "Loop" to play the video in a loop<br>
             "Skip rate" sets the interval for skipping the output image.
@@ -135,7 +135,7 @@ Read the node settings(json file) output by Export<br>
     </tr>
     <tr>
         <td width="200">
-            Int Value
+            Float Value
         </td>
         <td width="320">
             <img src="https://user-images.githubusercontent.com/37477845/172031323-98ae0273-7083-48d0-9ef2-f02af7fde482.png" loading="lazy" width="300px">
