@@ -14,5 +14,6 @@
     "video_writer_fps": 30,
     "video_writer_directory": "./_VideoWriter",
     "use_pref_counter": true,
-    "draw_info_on_result":true
+    "draw_info_on_result":true,
+    "use_gpu":true
 }

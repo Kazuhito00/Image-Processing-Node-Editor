@@ -100,6 +100,7 @@ class Node(DpgNodeABC):
         small_window_w = self._opencv_setting_dict['process_width']
         small_window_h = self._opencv_setting_dict['process_height']
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
+        use_gpu = self._opencv_setting_dict['use_gpu']
 
         # 初期化用黒画像
         black_image = np.zeros((small_window_w, small_window_h, 3))
@@ -152,17 +153,18 @@ class Node(DpgNodeABC):
                     width=small_window_w,
                     tag=tag_node_input02_value_name,
                 )
-            # CPU/GPU切り替え
-            with dpg.node_attribute(
-                    tag=tag_provider_select_name,
-                    attribute_type=dpg.mvNode_Attr_Static,
-            ):
-                dpg.add_radio_button(
-                    ("CPU", "GPU"),
-                    tag=tag_provider_select_value_name,
-                    default_value='CPU',
-                    horizontal=True,
-                )
+            if use_gpu:
+	            # CPU/GPU切り替え
+	            with dpg.node_attribute(
+	                    tag=tag_provider_select_name,
+	                    attribute_type=dpg.mvNode_Attr_Static,
+	            ):
+	                dpg.add_radio_button(
+	                    ("CPU", "GPU"),
+	                    tag=tag_provider_select_value_name,
+	                    default_value='CPU',
+	                    horizontal=True,
+	                )
             # スコア閾値
             with dpg.node_attribute(
                     tag=tag_node_input03_name,
@@ -208,6 +210,7 @@ class Node(DpgNodeABC):
         small_window_w = self._opencv_setting_dict['process_width']
         small_window_h = self._opencv_setting_dict['process_height']
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
+        use_gpu = self._opencv_setting_dict['use_gpu']
 
         # 接続情報確認
         connection_info_src = ''
@@ -235,7 +238,9 @@ class Node(DpgNodeABC):
         score_th = round(float(dpg_get_value(input_value03_tag)), 3)
 
         # CPU/GPU選択状態取得
-        provider = dpg_get_value(tag_provider_select_value_name)
+        provider = 'CPU'
+        if use_gpu:
+        	provider = dpg_get_value(tag_provider_select_value_name)
 
         # モデル情報取得
         model_name = dpg_get_value(input_value02_tag)
