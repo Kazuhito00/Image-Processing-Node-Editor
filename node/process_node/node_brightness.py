@@ -12,8 +12,8 @@ from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
 
-def image_process(image, alpha):
-    image = cv2.convertScaleAbs(image, alpha=alpha, beta=0)
+def image_process(image, beta):
+    image = cv2.convertScaleAbs(image, alpha=1.0, beta=beta)
     return image
 
 
@@ -23,8 +23,8 @@ class Node(DpgNodeABC):
     node_label = 'Brightness'
     node_tag = 'Brightness'
 
-    _min_val = 0.0
-    _max_val = 4.0
+    _min_val = 0
+    _max_val = 255
 
     _opencv_setting_dict = None
 
@@ -43,8 +43,8 @@ class Node(DpgNodeABC):
         tag_node_name = str(node_id) + ':' + self.node_tag
         tag_node_input01_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input01'
         tag_node_input01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input01Value'
-        tag_node_input02_name = tag_node_name + ':' + self.TYPE_FLOAT + ':Input02'
-        tag_node_input02_value_name = tag_node_name + ':' + self.TYPE_FLOAT + ':Input02Value'
+        tag_node_input02_name = tag_node_name + ':' + self.TYPE_INT + ':Input02'
+        tag_node_input02_value_name = tag_node_name + ':' + self.TYPE_INT + ':Input02Value'
         tag_node_output01_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01'
         tag_node_output01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         tag_node_output02_name = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02'
@@ -96,16 +96,16 @@ class Node(DpgNodeABC):
                     attribute_type=dpg.mvNode_Attr_Output,
             ):
                 dpg.add_image(tag_node_output01_value_name)
-            # スケールファクタ
+            # カーネルサイズ
             with dpg.node_attribute(
                     tag=tag_node_input02_name,
                     attribute_type=dpg.mvNode_Attr_Input,
             ):
-                dpg.add_slider_float(
+                dpg.add_slider_int(
                     tag=tag_node_input02_value_name,
-                    label="alpha",
+                    label="beta",
                     width=small_window_w - 80,
-                    default_value=1.0,
+                    default_value=0,
                     min_value=self._min_val,
                     max_value=self._max_val,
                     callback=None,
@@ -131,7 +131,7 @@ class Node(DpgNodeABC):
         node_result_dict,
     ):
         tag_node_name = str(node_id) + ':' + self.node_tag
-        input_value02_tag = tag_node_name + ':' + self.TYPE_FLOAT + ':Input02Value'
+        input_value02_tag = tag_node_name + ':' + self.TYPE_INT + ':Input02Value'
         output_value01_tag = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         output_value02_tag = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02Value'
 
@@ -143,12 +143,12 @@ class Node(DpgNodeABC):
         connection_info_src = ''
         for connection_info in connection_list:
             connection_type = connection_info[0].split(':')[2]
-            if connection_type == self.TYPE_FLOAT:
+            if connection_type == self.TYPE_INT:
                 # 接続タグ取得
                 source_tag = connection_info[0] + 'Value'
                 destination_tag = connection_info[1] + 'Value'
                 # 値更新
-                input_value = round(float(dpg_get_value(source_tag)), 3)
+                input_value = int(dpg_get_value(source_tag))
                 input_value = max([self._min_val, input_value])
                 input_value = min([self._max_val, input_value])
                 dpg_set_value(destination_tag, input_value)
@@ -161,15 +161,15 @@ class Node(DpgNodeABC):
         # 画像取得
         frame = node_image_dict.get(connection_info_src, None)
 
-        # スケールファクタ
-        alpha = float(dpg_get_value(input_value02_tag))
+        # スケールバイアス
+        beta = int(dpg_get_value(input_value02_tag))
 
         # 計測開始
         if frame is not None and use_pref_counter:
             start_time = time.perf_counter()
 
         if frame is not None:
-            frame = image_process(frame, alpha)
+            frame = image_process(frame, beta)
 
         # 計測終了
         if frame is not None and use_pref_counter:
@@ -194,7 +194,7 @@ class Node(DpgNodeABC):
 
     def get_setting_dict(self, node_id):
         tag_node_name = str(node_id) + ':' + self.node_tag
-        input_value02_tag = tag_node_name + ':' + self.TYPE_FLOAT + ':Input02Value'
+        input_value02_tag = tag_node_name + ':' + self.TYPE_INT + ':Input02Value'
 
         kernel_size = dpg_get_value(input_value02_tag)
 
@@ -209,8 +209,8 @@ class Node(DpgNodeABC):
 
     def set_setting_dict(self, node_id, setting_dict):
         tag_node_name = str(node_id) + ':' + self.node_tag
-        input_value02_tag = tag_node_name + ':' + self.TYPE_FLOAT + ':Input02Value'
+        input_value02_tag = tag_node_name + ':' + self.TYPE_INT + ':Input02Value'
 
-        kernel_size = float(setting_dict[input_value02_tag])
+        kernel_size = int(setting_dict[input_value02_tag])
 
         dpg_set_value(input_value02_tag, kernel_size)
