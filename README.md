@@ -411,6 +411,18 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             グラフに表示するノード
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            BRISQUE
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/173472170-cc47e04e-80e7-4126-949f-a0f034b9f0b8.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            BRISQUEを用いた画質評価を行うノード<br>
+            ※数値が高いほど悪い
+        </td>
+    </tr>
 </table>
 </details>
 
