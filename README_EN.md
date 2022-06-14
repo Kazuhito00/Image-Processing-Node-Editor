@@ -409,6 +409,18 @@ Refer to each directory of "node/deep_learning_node/XXXXXXXX" for the license of
             Node that calculates the histogram of each RGB channel of the input image and displays it in the graph
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            BRISQUE
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/173472170-cc47e04e-80e7-4126-949f-a0f034b9f0b8.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            A node that evaluates image quality using BRISQUE<br>
+            * The higher the number, the worse
+        </td>
+    </tr>
 </table>
 </details>
 
