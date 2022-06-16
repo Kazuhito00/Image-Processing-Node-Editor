@@ -21,7 +21,7 @@ RUN pip install --upgrade pip
 RUN pip install --upgrade cython numpy
 
 RUN pip install \
-opencv-python==4.5.5.64 \
+opencv-contrib-python==4.5.5.64 \
 onnxruntime-gpu==1.11.1 \
 dearpygui==1.6.2 \
 mediapipe==0.8.10 \
