@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+import copy
 import time
 
 import cv2
@@ -12,23 +13,37 @@ from node_editor.util import dpg_get_value, dpg_set_value
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
-
-def image_process(image, model_path, range_path):
-    score = cv2.quality.QualityBRISQUE_compute(image, model_path, range_path)
-    return score
+from node.draw_node.draw_util.draw_util import draw_qrcode_detection_info
 
 
 class Node(DpgNodeABC):
     _ver = '0.0.1'
 
-    node_label = 'BRISQUE'
-    node_tag = 'BRISQUE'
-
-    _current_path = os.path.dirname(os.path.abspath(__file__))
-    _model_path = _current_path + '/BRISQUE/brisque_model_live.yml'
-    _range_path = _current_path + '/BRISQUE/brisque_range_live.yml'
+    node_label = 'QR Code Detection'
+    node_tag = 'QRCodeDetection'
 
     _opencv_setting_dict = None
+
+    # モデル設定
+    _model_class = {
+        'WeChatQRCodeDetector': cv2.wechat_qrcode_WeChatQRCode,
+        'OpenCVQRCodeDetector(Non DeepLearning)': cv2.QRCodeDetector,
+    }
+
+    _current_path = os.path.dirname(os.path.abspath(__file__))
+    _model_base_path = _current_path + '/qrcode_detection/'
+    _model_path_setting = {
+        'WeChatQRCodeDetector': [
+            _model_base_path + 'WeChatQRCodeDetector/detect.prototxt',
+            _model_base_path + 'WeChatQRCodeDetector/detect.caffemodel',
+            _model_base_path + 'WeChatQRCodeDetector/sr.prototxt',
+            _model_base_path + 'WeChatQRCodeDetector/sr.caffemodel',
+        ],
+        'OpenCVQRCodeDetector(Non DeepLearning)':
+        None,
+    }
+
+    _model_instance = {}
 
     def __init__(self):
         pass
@@ -45,13 +60,12 @@ class Node(DpgNodeABC):
         tag_node_name = str(node_id) + ':' + self.node_tag
         tag_node_input01_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input01'
         tag_node_input01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input01Value'
+        tag_node_input02_name = tag_node_name + ':' + self.TYPE_TEXT + ':Input02'
+        tag_node_input02_value_name = tag_node_name + ':' + self.TYPE_TEXT + ':Input02Value'
         tag_node_output01_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01'
         tag_node_output01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         tag_node_output02_name = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02'
         tag_node_output02_value_name = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02Value'
-
-        tag_node_score_name = tag_node_name + ':' + self.TYPE_TEXT + ':Score'
-        tag_node_score_value_name = tag_node_name + ':' + self.TYPE_TEXT + ':ScoreValue'
 
         # OpenCV向け設定
         self._opencv_setting_dict = opencv_setting_dict
@@ -99,14 +113,16 @@ class Node(DpgNodeABC):
                     attribute_type=dpg.mvNode_Attr_Output,
             ):
                 dpg.add_image(tag_node_output01_value_name)
-            # 結果
+            # 使用アルゴリズム
             with dpg.node_attribute(
-                    tag=tag_node_score_name,
+                    tag=tag_node_input02_name,
                     attribute_type=dpg.mvNode_Attr_Static,
             ):
-                dpg.add_text(
-                    tag=tag_node_score_value_name,
-                    default_value='BRISQUE Score',
+                dpg.add_combo(
+                    list(self._model_class.keys()),
+                    default_value=list(self._model_class.keys())[0],
+                    width=small_window_w,
+                    tag=tag_node_input02_value_name,
                 )
             # 処理時間
             if use_pref_counter:
@@ -129,10 +145,9 @@ class Node(DpgNodeABC):
         node_result_dict,
     ):
         tag_node_name = str(node_id) + ':' + self.node_tag
+        input_value02_tag = tag_node_name + ':' + self.TYPE_TEXT + ':Input02Value'
         output_value01_tag = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         output_value02_tag = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02Value'
-
-        tag_node_score_value_name = tag_node_name + ':' + self.TYPE_TEXT + ':ScoreValue'
 
         small_window_w = self._opencv_setting_dict['process_width']
         small_window_h = self._opencv_setting_dict['process_height']
@@ -160,16 +175,51 @@ class Node(DpgNodeABC):
         # 画像取得
         frame = node_image_dict.get(connection_info_src, None)
 
+        # モデル情報取得
+        model_name = dpg_get_value(input_value02_tag)
+        model_path = self._model_path_setting[model_name]
+        model_class = self._model_class[model_name]
+
+        model_name_with_provider = model_name + '_' + 'CPU'
+
+        # モデル取得
+        if frame is not None:
+            if model_name_with_provider not in self._model_instance:
+                if model_name == 'WeChatQRCodeDetector':
+                    self._model_instance[
+                        model_name_with_provider] = model_class(*model_path)
+                elif model_name == 'OpenCVQRCodeDetector(Non DeepLearning)':
+                    self._model_instance[
+                        model_name_with_provider] = model_class()
+
         # 計測開始
         if frame is not None and use_pref_counter:
             start_time = time.perf_counter()
 
         result = {}
         if frame is not None:
-            score = image_process(frame, self._model_path, self._range_path)
+            if model_name == 'WeChatQRCodeDetector':
+                results = self._model_instance[
+                    model_name_with_provider].detectAndDecode(frame)
+            elif model_name == 'OpenCVQRCodeDetector(Non DeepLearning)':
+                _, *results = self._model_instance[
+                    model_name_with_provider].detectAndDecodeMulti(frame)
+                if results[1] is None:
+                    results[1] = []
 
-            dpg_set_value(tag_node_score_value_name, str('%.2f' % score[0]))
-            result['score'] = score
+            texts = []
+            bboxes = []
+            for text, corner in zip(results[0], results[1]):
+                texts.append(text)
+
+                corner_01 = [int(corner[0][0]), int(corner[0][1])]
+                corner_02 = [int(corner[1][0]), int(corner[1][1])]
+                corner_03 = [int(corner[2][0]), int(corner[2][1])]
+                corner_04 = [int(corner[3][0]), int(corner[3][1])]
+                bboxes.append([corner_01, corner_02, corner_03, corner_04])
+
+            result['texts'] = texts
+            result['bboxes'] = bboxes
 
         # 計測終了
         if frame is not None and use_pref_counter:
@@ -180,8 +230,14 @@ class Node(DpgNodeABC):
 
         # 描画
         if frame is not None:
+            debug_frame = copy.deepcopy(frame)
+            debug_frame = draw_qrcode_detection_info(
+                debug_frame,
+                texts,
+                bboxes,
+            )
             texture = convert_cv_to_dpg(
-                frame,
+                debug_frame,
                 small_window_w,
                 small_window_h,
             )

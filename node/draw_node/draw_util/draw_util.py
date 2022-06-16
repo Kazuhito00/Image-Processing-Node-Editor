@@ -97,6 +97,14 @@ def draw_info(node_name, node_result, image):
             class_names,
             track_id_dict,
         )
+    elif node_name == 'QRCodeDetection':
+        texts = node_result.get('texts', [])
+        bboxes = node_result.get('bboxes', [])
+        debug_image = draw_qrcode_detection_info(
+            debug_image,
+            texts,
+            bboxes,
+        )
 
     return debug_image
 
@@ -734,6 +742,36 @@ def draw_multi_object_tracking_info(
             0.9,
             color,
             thickness=2,
+        )
+
+    return image
+
+
+def draw_qrcode_detection_info(
+    image,
+    texts,
+    bboxes,
+):
+    for text, bbox in zip(texts, bboxes):
+        # 各辺
+        cv2.line(image, (bbox[0][0], bbox[0][1]), (bbox[1][0], bbox[1][1]),
+                 (255, 0, 0), 2)
+        cv2.line(image, (bbox[1][0], bbox[1][1]), (bbox[2][0], bbox[2][1]),
+                 (255, 0, 0), 2)
+        cv2.line(image, (bbox[2][0], bbox[2][1]), (bbox[3][0], bbox[3][1]),
+                 (0, 255, 0), 2)
+        cv2.line(image, (bbox[3][0], bbox[3][1]), (bbox[0][0], bbox[0][1]),
+                 (0, 255, 0), 2)
+
+        # テキスト
+        cv2.putText(
+            image,
+            str(text),
+            (bbox[0][0], bbox[0][1] - 12),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.9,
+            (0, 255, 0),
+            thickness=3,
         )
 
     return image
