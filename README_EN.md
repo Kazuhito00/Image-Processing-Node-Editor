@@ -375,7 +375,19 @@ Refer to each directory of "node/deep_learning_node/XXXXXXXX" for the license of
             <img src="https://user-images.githubusercontent.com/37477845/172045965-6d77f4ef-d208-40c9-a335-25a9d1d07acc.png" loading="lazy" width="300px">
         </td>
         <td width="760">
-            A node that performs semantic segmentation on the input image<br>
+            Node that performs semantic segmentation on the input image<br>
+            The output image is a raw image
+        </td>
+    </tr>
+    <tr>
+        <td width="200">
+            QR Code Detection
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/174199447-f92a18ef-cc76-46a3-abf5-314f8f9e01fe.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            Node that executes QR code detection for the input image<br>
             The output image is a raw image
         </td>
     </tr>
