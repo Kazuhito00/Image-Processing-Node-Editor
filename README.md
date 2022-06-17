@@ -380,6 +380,18 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             出力画像は未加工の画像
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            QR Code Detection
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/174199447-f92a18ef-cc76-46a3-abf5-314f8f9e01fe.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            入力画像に対しQRコード検出を実行するノード<br>
+            出力画像は未加工の画像
+        </td>
+    </tr>
 </table>
 </details>
 
