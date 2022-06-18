@@ -5,8 +5,16 @@ import numpy as np
 
 
 def draw_info(node_name, node_result, image):
+    classification_nodes = ['Classification']
+    object_detection_nodes = ['ObjectDetection']
+    semantic_segmentation_nodes = ['SemanticSegmentation']
+    pose_estimation_nodes = ['PoseEstimation']
+    face_detection_nodes = ['FaceDetection']
+    multi_object_tracking_nodes = ['MultiObjectTracking']
+    qr_code_detection_nodes = ['QRCodeDetection']
+
     debug_image = copy.deepcopy(image)
-    if node_name == 'Classification':
+    if node_name in classification_nodes:
         use_object_detection = node_result.get('use_object_detection', [])
         class_ids = node_result.get('class_ids', [])
         class_scores = node_result.get('class_scores', [])
@@ -37,7 +45,7 @@ def draw_info(node_name, node_result, image):
                 class_scores,
                 class_names,
             )
-    elif node_name == 'ObjectDetection':
+    elif node_name in object_detection_nodes:
         bboxes = node_result.get('bboxes', [])
         scores = node_result.get('scores', [])
         class_ids = node_result.get('class_ids', [])
@@ -51,7 +59,7 @@ def draw_info(node_name, node_result, image):
             class_ids,
             class_names,
         )
-    elif node_name == 'SemanticSegmentation':
+    elif node_name in semantic_segmentation_nodes:
         class_num = node_result.get('class_num', [])
         segmentation_map = node_result.get('segmentation_map', [])
         score_th = node_result.get('score_th', [])
@@ -61,7 +69,7 @@ def draw_info(node_name, node_result, image):
             class_num,
             segmentation_map,
         )
-    elif node_name == 'PoseEstimation':
+    elif node_name in pose_estimation_nodes:
         model_name = node_result.get('model_name', [])
         results_list = node_result.get('results_list', [])
         score_th = node_result.get('score_th', [])
@@ -71,7 +79,7 @@ def draw_info(node_name, node_result, image):
             results_list,
             score_th,
         )
-    elif node_name == 'FaceDetection':
+    elif node_name in face_detection_nodes:
         model_name = node_result.get('model_name', [])
         results_list = node_result.get('results_list', [])
         score_th = node_result.get('score_th', [])
@@ -81,7 +89,7 @@ def draw_info(node_name, node_result, image):
             results_list,
             score_th,
         )
-    elif node_name == 'MultiObjectTracking':
+    elif node_name in multi_object_tracking_nodes:
         track_ids = node_result.get('track_ids', [])
         bboxes = node_result.get('bboxes', [])
         scores = node_result.get('scores', [])
@@ -97,7 +105,7 @@ def draw_info(node_name, node_result, image):
             class_names,
             track_id_dict,
         )
-    elif node_name == 'QRCodeDetection':
+    elif node_name in qr_code_detection_nodes:
         texts = node_result.get('texts', [])
         bboxes = node_result.get('bboxes', [])
         debug_image = draw_qrcode_detection_info(
@@ -307,16 +315,26 @@ def draw_semantic_segmentation_info(
 def draw_pose_estimation_info(model_name, image, results_list, score_th):
     debug_image = copy.deepcopy(image)
 
-    if model_name == 'MoveNet(SinglePose Lightning)' or \
-            model_name == 'MoveNet(SinglePose Thunder)'or \
-            model_name == 'MoveNet(MulitPose Lightning)':
+    move_net_nodes = [
+        'MoveNet(SinglePose Lightning)',
+        'MoveNet(SinglePose Thunder)',
+        'MoveNet(MulitPose Lightning)',
+    ]
+    mediapipe_hands_nodes = [
+        'MediaPipe Hands(Complexity0)',
+        'MediaPipe Hands(Complexity1)',
+    ]
+    mediapipe_pose_nodes = [
+        'MediaPipe Pose(Complexity0)',
+        'MediaPipe Pose(Complexity1)',
+        'MediaPipe Pose(Complexity2)',
+    ]
+
+    if model_name in move_net_nodes:
         debug_image = draw_movenet_info(debug_image, results_list, score_th)
-    elif model_name == 'MediaPipe Hands(Complexity0)' or \
-            model_name == 'MediaPipe Hands(Complexity1)':
+    elif model_name in mediapipe_hands_nodes:
         debug_image = draw_mediapipe_hands_info(debug_image, results_list)
-    elif model_name == 'MediaPipe Pose(Complexity0)' or \
-            model_name == 'MediaPipe Pose(Complexity1)'or \
-            model_name == 'MediaPipe Pose(Complexity2)':
+    elif model_name in mediapipe_pose_nodes:
         debug_image = draw_mediapipe_pose_info(
             debug_image,
             results_list,
