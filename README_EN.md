@@ -283,6 +283,17 @@ Read the node settings(json file) output by Export<br>
             In "type", "Otsu binarization (THRESH_OTSU)" is an automatic threshold determination algorithm, so the "threshold" value is ignored.
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Simple Filter
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/178098739-ee15159c-d66f-4b5d-822d-dbaf686448d6.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            A node that performs 3x3 2D filtering processing on the input image and outputs the image
+        </td>
+    </tr>
 </table>
 </details>
 
