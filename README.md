@@ -284,6 +284,17 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             閾値自動決定アルゴリズムのため「threshold」値は無視
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Simple Filter
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/178098739-ee15159c-d66f-4b5d-822d-dbaf686448d6.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            入力画像に3×3の2次元フィルタリング処理を行い、画像を出力するノード
+        </td>
+    </tr>
 </table>
 </details>
 
