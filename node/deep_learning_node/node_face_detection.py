@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import copy
 import time
+import os
 
 import numpy as np
 import dearpygui.dearpygui as dpg
@@ -43,7 +44,7 @@ class Node(DpgNodeABC):
         'MediaPipe FaceMesh': MediaPipeFaceMeshNonRefine,
         'MediaPipe FaceMesh(Refine Landmark)': MediaPipeFaceMeshRefine,
     }
-    _model_base_path = 'node/deep_learning_node/face_detection/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/face_detection/'
     _model_path_setting = {
         'YuNet':
         _model_base_path + 'YuNet/model/face_detection_yunet_120x160.onnx',

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
+import os
 
 import numpy as np
 import dearpygui.dearpygui as dpg
@@ -32,7 +33,7 @@ class Node(DpgNodeABC):
         'AGLLNet(256x256)': AGLLNet,
         'AGLLNet(512x384)': AGLLNet,
     }
-    _model_base_path = 'node/deep_learning_node/low_light_image_enhancement/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/low_light_image_enhancement/'
     _model_path_setting = {
         'TBEFN(320x180)':
         _model_base_path + 'TBEFN/saved_model_180x320/model_float32.onnx',

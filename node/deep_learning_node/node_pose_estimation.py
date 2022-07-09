@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import copy
 import time
+import os
 
 import numpy as np
 import dearpygui.dearpygui as dpg
@@ -51,7 +52,7 @@ class Node(DpgNodeABC):
         'MediaPipe Pose(Complexity1)': MediaPipePoseComplexity1,
         'MediaPipe Pose(Complexity2)': MediaPipePoseComplexity2,
     }
-    _model_base_path = 'node/deep_learning_node/pose_estimation/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/pose_estimation/'
     _model_path_setting = {
         'MoveNet(SinglePose Lightning)':
         _model_base_path + 'movenet/model/movenet_singlepose_lightning_4.onnx',

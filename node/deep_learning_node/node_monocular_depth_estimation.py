@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
+import os
 
 import cv2
 import numpy as np
@@ -30,7 +31,7 @@ class Node(DpgNodeABC):
         'Lite-HR-Depth(1280x384)': HR_Depth,
         'HR-Depth(1280x384)': HR_Depth,
     }
-    _model_base_path = 'node/deep_learning_node/monocular_depth_estimation/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/monocular_depth_estimation/'
     _model_path_setting = {
         'FSRE-Depth(320x192)':
         _model_base_path +

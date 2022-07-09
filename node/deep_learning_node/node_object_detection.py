@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import copy
 import time
+import os
 
 import numpy as np
 import dearpygui.dearpygui as dpg
@@ -38,7 +39,7 @@ class Node(DpgNodeABC):
         'YOLOX-S(640x640)': YOLOX,
         'Light-Weight Person Detector': LWPDetector,
     }
-    _model_base_path = 'node/deep_learning_node/object_detection/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/object_detection/'
     _model_path_setting = {
         'YOLOX-Nano(416x416)':
         _model_base_path + 'YOLOX/model/yolox_nano.onnx',

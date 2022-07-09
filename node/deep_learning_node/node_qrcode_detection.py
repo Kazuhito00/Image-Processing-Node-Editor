@@ -29,9 +29,7 @@ class Node(DpgNodeABC):
         'WeChatQRCodeDetector': cv2.wechat_qrcode_WeChatQRCode,
         'OpenCVQRCodeDetector(Non DeepLearning)': cv2.QRCodeDetector,
     }
-
-    _current_path = os.path.dirname(os.path.abspath(__file__))
-    _model_base_path = _current_path + '/qrcode_detection/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/qrcode_detection/'
     _model_path_setting = {
         'WeChatQRCodeDetector': [
             _model_base_path + 'WeChatQRCodeDetector/detect.prototxt',

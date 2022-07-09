@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
+import os
 
 import numpy as np
 import dearpygui.dearpygui as dpg
@@ -45,7 +46,7 @@ class Node(DpgNodeABC):
         'MediaPipe SelfieSegmentation(LandScape)':
         MediaPipeSelfieSegmentationLandScape,
     }
-    _model_base_path = 'node/deep_learning_node/semantic_segmentation/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/semantic_segmentation/'
     _model_path_setting = {
         'DeepLabV3':
         _model_base_path + 'deeplab_v3/model/deeplab_v3_1_default_1.onnx',

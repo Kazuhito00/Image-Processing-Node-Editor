@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import copy
 import time
+import os
 
 import numpy as np
 import dearpygui.dearpygui as dpg
@@ -36,7 +37,7 @@ class Node(DpgNodeABC):
         'MobileNetV3 Large': MobileNetV3,
         'EfficientNet B0': EfficientNetB0,
     }
-    _model_base_path = 'node/deep_learning_node/classification/'
+    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/classification/'
     _model_path_setting = {
         'MobileNetV3 Small':
         _model_base_path + 'MobileNetV3/model/MobileNetV3Small.onnx',

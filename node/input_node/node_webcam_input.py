@@ -33,7 +33,7 @@ class Node(DpgNodeABC):
         # タグ名
         tag_node_name = str(node_id) + ':' + self.node_tag
         tag_node_input01_name = tag_node_name + ':' + self.TYPE_INT + ':Input01'
-        tag_node_input01_value_name = tag_node_name + ':' + self.TYPE_INT + ':Inpu01tValue'
+        tag_node_input01_value_name = tag_node_name + ':' + self.TYPE_INT + ':Input01Value'
         tag_node_output01_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01'
         tag_node_output01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         tag_node_output02_name = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02'
@@ -109,7 +109,7 @@ class Node(DpgNodeABC):
         node_result_dict,
     ):
         tag_node_name = str(node_id) + ':' + self.node_tag
-        input_value01_tag = tag_node_name + ':' + self.TYPE_INT + ':Inpu01tValue'
+        input_value01_tag = tag_node_name + ':' + self.TYPE_INT + ':Input01Value'
         output_value01_tag = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         output_value02_tag = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02Value'
 
