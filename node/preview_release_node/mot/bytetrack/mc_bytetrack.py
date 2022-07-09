@@ -110,8 +110,7 @@ class MultiClassByteTrack(object):
         for online_target in online_targets:
             tlwh = online_target.tlwh
             track_id = online_target.track_id
-            vertical = tlwh[2] / tlwh[3] > 1.6
-            if tlwh[2] * tlwh[3] > self.min_box_area and not vertical:
+            if tlwh[2] * tlwh[3] > self.min_box_area:
                 online_tlwhs.append(
                     np.array([
                         tlwh[0], tlwh[1], tlwh[0] + tlwh[2], tlwh[1] + tlwh[3]
