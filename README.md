@@ -579,6 +579,31 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
 </table>
 </details>
 
+# Node(Another repository)
+他リポジトリで公開しているノードです。<br>
+Image-Processing-Node-Editor で使用するには、各リポジトリのインストール方法に従ってください。
+
+<details>
+<summary>Input Node</summary>
+
+<table>
+    <tr>
+        <td width="200">
+            YouTube
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/179128561-d4e23896-98fd-4439-8489-223c92976899.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            YouTubeを読み込み、画像を出力するノード<br>
+            URL欄にYouTube動画のURLを指定して「Start」ボタンを押してください。<br>
+            再生が始まるまでに少々時間がかかります
+        </td>
+    </tr>
+</table>
+
+</details>
+
 # ToDo
 - [ ] RGB Histgramノードのグラフ部分が常に最前面に表示される問題の調査
 - [ ] 複数ノードを接続したノードを削除した際に接続線が残る問題の調査
