@@ -589,7 +589,7 @@ Image-Processing-Node-Editor で使用するには、各リポジトリのイン
 <table>
     <tr>
         <td width="200">
-            YouTube
+            [YouTube](https://github.com/Kazuhito00/IPNE-YouTube-Input-Node)
         </td>
         <td width="320">
             <img src="https://user-images.githubusercontent.com/37477845/179128561-d4e23896-98fd-4439-8489-223c92976899.png" loading="lazy" width="300px">
