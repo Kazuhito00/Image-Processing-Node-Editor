@@ -574,6 +574,32 @@ Nodes whose specifications may change significantly in the future
 </table>
 </details>
 
+# Node(Other repository)
+It is a node published in other repositories.<br>
+To use it with Image-Processing-Node-Editor, follow the installation instructions for each repository.
+
+<details>
+<summary>Input Node</summary>
+
+<table>
+    <tr>
+        <td width="200">
+            YouTube
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/179128561-d4e23896-98fd-4439-8489-223c92976899.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            Node that reads YouTube and outputs images<br>
+            Please specify the URL of the YouTube video in the URL field and press the "Start" button<br>
+            It will take some time before playback starts
+        </td>
+    </tr>
+</table>
+
+</details>
+
+
 # ToDo
 - [ ] Investigating the problem that the graph part of the RGB Histgram node is always in the foreground
 - [ ] Investigating the problem that the connection line remains when deleting a node that connects multiple nodes
