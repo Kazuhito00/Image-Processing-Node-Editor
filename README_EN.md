@@ -584,7 +584,7 @@ To use it with Image-Processing-Node-Editor, follow the installation instruction
 <table>
     <tr>
         <td width="200">
-            [YouTube](https://github.com/Kazuhito00/IPNE-YouTube-Input-Node)
+            <a href="https://github.com/Kazuhito00/IPNE-YouTube-Input-Node">YouTube</a>
         </td>
         <td width="320">
             <img src="https://user-images.githubusercontent.com/37477845/179128561-d4e23896-98fd-4439-8489-223c92976899.png" loading="lazy" width="300px">
