@@ -584,15 +584,16 @@ To use it with Image-Processing-Node-Editor, follow the installation instruction
 <table>
     <tr>
         <td width="200">
-            <a href="https://github.com/Kazuhito00/IPNE-YouTube-Input-Node">YouTube</a>
+            YouTube
         </td>
         <td width="320">
-            <img src="https://user-images.githubusercontent.com/37477845/179128561-d4e23896-98fd-4439-8489-223c92976899.png" loading="lazy" width="300px">
+            <img src="https://user-images.githubusercontent.com/37477845/179450682-f7cc8237-e9d8-4c0f-b5d8-d2caac453f04.png" loading="lazy" width="300px">
         </td>
         <td width="760">
             Node that reads YouTube and outputs images<br>
             Please specify the URL of the YouTube video in the URL field and press the "Start" button<br>
-            It will take some time before playback starts
+            It will take some time before playback starts<br>
+            Specify the YouTube loading interval with "Interval(ms)"
         </td>
     </tr>
 </table>
