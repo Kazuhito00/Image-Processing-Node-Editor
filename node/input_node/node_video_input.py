@@ -165,6 +165,19 @@ class Node(DpgNodeABC):
         small_window_h = self._opencv_setting_dict['input_window_height']
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
 
+        # 接続情報確認
+        for connection_info in connection_list:
+            connection_type = connection_info[0].split(':')[2]
+            if connection_type == self.TYPE_INT:
+                # 接続タグ取得
+                source_tag = connection_info[0] + 'Value'
+                destination_tag = connection_info[1] + 'Value'
+                # 値更新
+                input_value = int(dpg_get_value(source_tag))
+                input_value = max([self._min_val, input_value])
+                input_value = min([self._max_val, input_value])
+                dpg_set_value(destination_tag, input_value)
+
         # VideoCapture()インスタンス生成
         movie_path = self._movie_filepath.get(str(node_id), None)
         prev_movie_path = self._prev_movie_filepath.get(str(node_id), None)
