@@ -571,6 +571,19 @@ Nodes whose specifications may change significantly in the future
             A node that inputs an Object Detection node and executes MOT(Multi Object Tracking)
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Exec Python Code
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/179454389-7b707584-ef3b-43f2-8e99-db74005c76e8.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            Node that executes Python code <br>
+            The variable for the input image is "input_image" <br>
+            The variable for the output image is "output_image"
+        </td>
+    </tr>
 </table>
 </details>
 

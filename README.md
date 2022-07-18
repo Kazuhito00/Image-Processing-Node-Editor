@@ -576,6 +576,19 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             Object Detectionノードを入力しMOT(Multi Object Tracking)を実行するノード
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Exec Python Code
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/179454389-7b707584-ef3b-43f2-8e99-db74005c76e8.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            Pythonコードを実行するノード<br>
+            入力画像用の変数は「input_image」<br>
+            出力画像用の変数は「output_image」
+        </td>
+    </tr>
 </table>
 </details>
 
