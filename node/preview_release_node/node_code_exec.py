@@ -14,7 +14,7 @@ from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
 
-def image_process(input_image, code):
+def image_process(input_image, input_value, code):
     image_width = input_image.shape[1]
     font_scale = image_width / 1000
     thickness = 1 + int((image_width + 500) / 1000)
@@ -23,6 +23,7 @@ def image_process(input_image, code):
 
     exec_local = {
         'input_image': input_image,
+        'input_value': input_value,
         'output_image': output_image,
     }
 
@@ -173,11 +174,20 @@ class Node(DpgNodeABC):
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
 
         # 画像取得元のノード名(ID付き)を取得する
+        src_node_result = None
         connection_info_src = ''
         for connection_info in connection_list:
-            connection_info_src = connection_info[0]
-            connection_info_src = connection_info_src.split(':')[:2]
-            connection_info_src = ':'.join(connection_info_src)
+            connection_type = connection_info[0].split(':')[2]
+            if connection_type == self.TYPE_INT:
+                connection_info_src = connection_info[0]
+                connection_info_src = connection_info_src.split(':')[:2]
+                connection_info_src = ':'.join(connection_info_src)
+            if connection_type == self.TYPE_IMAGE:
+                connection_info_src = connection_info[0]
+                connection_info_src = connection_info_src.split(':')[:2]
+                connection_info_src = ':'.join(connection_info_src)
+                src_node_result = node_result_dict.get(connection_info_src,
+                                                       None)
 
         # 画像取得
         frame = node_image_dict.get(connection_info_src, None)
@@ -191,7 +201,7 @@ class Node(DpgNodeABC):
 
         # コード実行
         if frame is not None:
-            frame = image_process(frame, code)
+            frame = image_process(frame, src_node_result, code)
 
         # 計測終了
         if frame is not None and use_pref_counter:
