@@ -589,15 +589,16 @@ Image-Processing-Node-Editor で使用するには、各リポジトリのイン
 <table>
     <tr>
         <td width="200">
-            <a href="https://github.com/Kazuhito00/IPNE-YouTube-Input-Node">YouTube</a>
+            YouTube
         </td>
         <td width="320">
-            <img src="https://user-images.githubusercontent.com/37477845/179128561-d4e23896-98fd-4439-8489-223c92976899.png" loading="lazy" width="300px">
+            <img src="https://user-images.githubusercontent.com/37477845/179450682-f7cc8237-e9d8-4c0f-b5d8-d2caac453f04.png" loading="lazy" width="300px">
         </td>
         <td width="760">
             YouTubeを読み込み、画像を出力するノード<br>
-            URL欄にYouTube動画のURLを指定して「Start」ボタンを押してください。<br>
-            再生が始まるまでに少々時間がかかります
+            URL欄にYouTube動画のURLを指定して「Start」ボタンを押してください<br>
+            再生が始まるまでに少々時間がかかります<br>
+            Interval(ms)でYouTube読み込み間隔を指定します
         </td>
     </tr>
 </table>
