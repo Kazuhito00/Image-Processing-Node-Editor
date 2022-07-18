@@ -135,7 +135,7 @@ class DpgNodeEditor(object):
                                 import_path = import_path.replace('\\', '.')
                             else:
                                 import_path = import_path.replace('/', '.')
-                            
+
                             import_path = import_path.split('.')
                             import_path = '.'.join(import_path[-3:])
                             # __init__.pyのみ除外
@@ -503,31 +503,33 @@ class DpgNodeEditor(object):
             item_id = dpg.get_selected_nodes(self._node_editor_tag)[0]
             # ノード名を特定
             node_id_name = dpg.get_item_alias(item_id)
-            # ノード終了処理
             node_id, node_name = node_id_name.split(':')
-            node_instance = self.get_node_instance(node_name)
-            node_instance.close(node_id)
-            # ノードリストから削除
-            self._node_list.remove(node_id_name)
-            # ノードリンクリストから削除
-            copy_node_link_list = copy.deepcopy(self._node_link_list)
-            for link_info in copy_node_link_list:
-                source_node = link_info[0].split(':')[:2]
-                source_node = ':'.join(source_node)
-                destination_node = link_info[1].split(':')[:2]
-                destination_node = ':'.join(destination_node)
 
-                if source_node == node_id_name or destination_node == node_id_name:
-                    self._node_link_list.remove(link_info)
+            if node_name != 'ExecPythonCode':
+                # ノード終了処理
+                node_instance = self.get_node_instance(node_name)
+                node_instance.close(node_id)
+                # ノードリストから削除
+                self._node_list.remove(node_id_name)
+                # ノードリンクリストから削除
+                copy_node_link_list = copy.deepcopy(self._node_link_list)
+                for link_info in copy_node_link_list:
+                    source_node = link_info[0].split(':')[:2]
+                    source_node = ':'.join(source_node)
+                    destination_node = link_info[1].split(':')[:2]
+                    destination_node = ':'.join(destination_node)
 
-            # ノードグラフ再生成
-            self._node_connection_dict = self._sort_node_graph(
-                self._node_list,
-                self._node_link_list,
-            )
+                    if source_node == node_id_name or destination_node == node_id_name:
+                        self._node_link_list.remove(link_info)
 
-            # アイテム削除
-            dpg.delete_item(item_id)
+                # ノードグラフ再生成
+                self._node_connection_dict = self._sort_node_graph(
+                    self._node_list,
+                    self._node_link_list,
+                )
+
+                # アイテム削除
+                dpg.delete_item(item_id)
 
         if self._use_debug_print:
             print('**** _callback_mv_key_del ****')
