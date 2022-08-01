@@ -305,6 +305,18 @@ Read the node settings(json file) output by Export<br>
             A node that performs 3x3 2D filtering processing on the input image and outputs the image
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Omnidirectional Viewer
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/182130848-fff3d053-6c21-4a03-9e96-371111112226.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            A node that transforms an input image(360-degree image) with the specified roll, pitch, and yaw axes and outputs the image<br>
+            The input image is assumed to be an equirectangular projection image
+        </td>
+    </tr>
 </table>
 </details>
 
