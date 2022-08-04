@@ -306,6 +306,18 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             入力画像に3×3の2次元フィルタリング処理を行い、画像を出力するノード
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Omnidirectional Viewer
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/182130848-fff3d053-6c21-4a03-9e96-371111112226.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            入力画像（360度画像）を指定のロール軸、ピッチ軸、ヨー軸で変換して、画像を出力するノード<br>
+            入力画像は正距円筒図法の画像を想定
+        </td>
+    </tr>
 </table>
 </details>
 
