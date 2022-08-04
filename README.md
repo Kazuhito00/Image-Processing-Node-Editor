@@ -13,7 +13,7 @@
 # Requirement
 ```
 opencv-python   4.5.5.64 or later
-onnxruntime-gpu 1.11.1   or later
+onnxruntime-gpu 1.12.0   or later
 dearpygui       1.6.2    or later
 mediapipe       0.8.10   or later ※mediapipeノード実行に必要
 protobuf        3.20.0   or later ※mediapipeノード実行に必要
