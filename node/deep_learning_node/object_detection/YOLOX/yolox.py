@@ -16,11 +16,11 @@ class YOLOX(object):
         nms_score_th=0.1,
         with_p6=False,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],

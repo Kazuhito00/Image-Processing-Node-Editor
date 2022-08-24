@@ -16,11 +16,11 @@ class LWPDetector(object):
             score_th=0.0,
             nms_th=0.5,
             providers=[
-                ('TensorrtExecutionProvider', {
-                    'trt_engine_cache_enable': True,
-                    'trt_engine_cache_path': '.',
-                    'trt_fp16_enable': True,
-                }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
                 'CUDAExecutionProvider',
                 'CPUExecutionProvider',
             ],

@@ -11,11 +11,11 @@ class EfficientNet(object):
         model_path,
         type='B0',
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -77,11 +77,11 @@ class EfficientNetB0(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -99,11 +99,11 @@ class EfficientNetB1(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -121,11 +121,11 @@ class EfficientNetB2(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -143,11 +143,11 @@ class EfficientNetB3(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -165,11 +165,11 @@ class EfficientNetB4(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -187,11 +187,11 @@ class EfficientNetB5(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -209,11 +209,11 @@ class EfficientNetB6(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -231,11 +231,11 @@ class EfficientNetB7(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],

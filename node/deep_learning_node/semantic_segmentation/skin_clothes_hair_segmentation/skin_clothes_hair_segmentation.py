@@ -9,11 +9,11 @@ class SkinClothesHairSegmentation(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],

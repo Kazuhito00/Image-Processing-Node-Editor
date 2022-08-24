@@ -12,11 +12,11 @@ class MoveNet(object):
         model_path,
         input_shape=(192, 192),
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -100,11 +100,11 @@ class MoveNetSinglePoseLightning(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -124,11 +124,11 @@ class MoveNetSinglePoseThunder(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
@@ -148,11 +148,11 @@ class MoveNetMultiPoseLightning(object):
         self,
         model_path,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],

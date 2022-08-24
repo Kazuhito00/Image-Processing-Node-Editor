@@ -25,11 +25,11 @@ class YuNet(object):
         topk=5000,
         keep_topk=750,
         providers=[
-            ('TensorrtExecutionProvider', {
-                'trt_engine_cache_enable': True,
-                'trt_engine_cache_path': '.',
-                'trt_fp16_enable': True,
-            }),
+            # ('TensorrtExecutionProvider', {
+            #     'trt_engine_cache_enable': True,
+            #     'trt_engine_cache_path': '.',
+            #     'trt_fp16_enable': True,
+            # }),
             'CUDAExecutionProvider',
             'CPUExecutionProvider',
         ],
