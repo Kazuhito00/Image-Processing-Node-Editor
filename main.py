@@ -10,14 +10,17 @@ import os
 
 import cv2
 import dearpygui.dearpygui as dpg
+import serial
+#import serial_asyncio
 
 try:
     from .node_editor.util import check_camera_connection
+    from .node_editor.util import check_serial_connection
     from .node_editor.node_editor import DpgNodeEditor
 except ImportError:
     from node_editor.util import check_camera_connection
+    from node_editor.util import check_serial_connection
     from node_editor.node_editor import DpgNodeEditor
-
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -119,9 +122,21 @@ def main():
         video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, webcam_height)
         camera_capture_list.append(video_capture)
 
+    # Serial接続デバイスチェック
+    print('**** Check Serial Device Connection ********')
+    serial_device_no_list = check_serial_connection()
+    serial_connection_list=[]
+    for serial_device_no in serial_device_no_list:
+        ser = serial.Serial(serial_device_no,115200)
+        serial_connection_list.append(ser)
+
     # カメラ設定保持
     opencv_setting_dict['device_no_list'] = device_no_list
     opencv_setting_dict['camera_capture_list'] = camera_capture_list
+
+    # Serial接続デバイス設定保持
+    opencv_setting_dict['serial_device_no_list'] = serial_device_no_list
+    opencv_setting_dict['serial_connection_list'] = serial_connection_list
 
     # DearPyGui準備(コンテキスト生成、セットアップ、ビューポート生成)
     editor_width = opencv_setting_dict['editor_width']
@@ -178,6 +193,7 @@ def main():
         event_loop = asyncio.get_event_loop()
         event_loop.run_in_executor(None, async_main, node_editor)
         dpg.start_dearpygui()
+        
     else:
         # 各ノードの処理結果保持用Dict
         node_image_dict = {}
@@ -204,6 +220,10 @@ def main():
     print('**** Release All VideoCapture ********')
     for camera_capture in camera_capture_list:
         camera_capture.release()
+    # Serial接続関連終了処理
+    print('**** Release All SerialConnections ********')
+    for serial_connection in serial_connection_list:
+        serial_connection.close
     # イベントループの停止
     print('**** Stop Event Loop ********')
     node_editor.set_terminate_flag()
@@ -211,7 +231,6 @@ def main():
     # DearPyGuiコンテキスト破棄
     print('**** Destroy DearPyGui Context ********')
     dpg.destroy_context()
-
 
 if __name__ == '__main__':
     main()
