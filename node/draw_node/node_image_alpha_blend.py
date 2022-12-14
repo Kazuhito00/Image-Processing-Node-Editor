@@ -21,48 +21,6 @@ def image_process(image, min_val, max_val):
     image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     return image
 
-def create_image_dict(
-    slot_num,
-    connection_info_src_dict,
-    node_image_dict,
-    node_result_dict,
-    image_node_name,
-    resize_width,
-    resize_height,
-    draw_info_on_result,
-):
-    frame_exist_flag = False
-
-    # 初期化用黒画像
-    black_image = np.zeros((resize_height, resize_width, 3)).astype(np.uint8)
-
-    frame_dict = {}
-    for index in range(slot_num - 1, -1, -1):
-        node_id_name = connection_info_src_dict.get(index, None)
-        frame = copy.deepcopy(node_image_dict.get(node_id_name, None))
-        if frame is not None:
-            if draw_info_on_result:
-                node_result = node_result_dict[node_id_name]
-                image_node_name = node_id_name.split(':')[1]
-                frame = draw_info(image_node_name, node_result, frame)
-            resize_frame = cv2.resize(frame, (resize_width, resize_height))
-            frame_dict[slot_num - index - 1] = copy.deepcopy(resize_frame)
-
-            frame_exist_flag = True
-        else:
-            frame_dict[slot_num - index - 1] = copy.deepcopy(black_image)
-
-    display_num_list = [1, 2, 4, 4, 6, 6, 9, 9, 9]
-    for index in range(display_num_list[slot_num - 1]):
-        if frame_dict.get(index, None) is None:
-            frame_dict[index] = copy.deepcopy(black_image)
-
-    if not frame_exist_flag:
-        frame_dict = None
-
-    return frame_dict
-
-
 class Node(DpgNodeABC):
     _ver = '0.0.1'
 
@@ -222,6 +180,8 @@ class Node(DpgNodeABC):
         draw_info_on_result = self._opencv_setting_dict['draw_info_on_result']
 
         # 接続情報確認
+        frame1 = None
+        frame2 = None
         node_name_dict = {}
         connection_info_src = ''
         connection_info_src_dict = {}
@@ -263,19 +223,21 @@ class Node(DpgNodeABC):
         # 画像取得
         frame_dict = {}
         print("src_dict",connection_info_src_dict)
-        if len(connection_info_src_dict) > 0:
-            frame_dict = create_image_dict(
-                slot_num,
-                connection_info_src_dict,
-                node_image_dict,
-                node_result_dict,
-                node_name,
-                small_window_w,
-                small_window_h,
-                draw_info_on_result,
-            )
+        try:
+            print("src_dict[0]",connection_info_src_dict[0])
+            print("src_dict[1]",connection_info_src_dict[1])
+            frame1 = node_image_dict.get(connection_info_src_dict[0])
+            frame2 = node_image_dict.get(connection_info_src_dict[1])
+        except:
+            pass
+
+        print("s")
+        if frame1 is not None:
+            print(frame1)
         print("ss")
-        frame = node_image_dict.get(connection_info_src, None)
+        print(node_image_dict)
+#        frame = node_image_dict.get(connection_info_src, None)
+        frame = frame2
         print("sss")
 
         print(frame_dict)
