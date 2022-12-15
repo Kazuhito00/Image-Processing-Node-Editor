@@ -23,8 +23,8 @@ def image_process(image):
 class Node(DpgNodeABC):
     _ver = '0.0.1'
 
-    node_label = 'SoundMap'
-    node_tag = 'SoundNMap'
+    node_label = 'SoundCam'
+    node_tag = 'SoundCamera'
 
     _opencv_setting_dict = None
 
