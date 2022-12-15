@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import time
 import re
-import copy
+#import copy
 
 import cv2
 import numpy as np
@@ -54,7 +54,7 @@ class Node(DpgNodeABC):
         node_id,
         pos=[0, 0],
         opencv_setting_dict=None,
-#        callback=None,
+        callback=None,
     ):
         # タグ名
         tag_node_name = str(node_id) + ':' + self.node_tag
@@ -62,10 +62,12 @@ class Node(DpgNodeABC):
         tag_node_input01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input01Value'
         tag_node_input02_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input02'
         tag_node_input02_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Input02Value'
-        tag_node_input03_name = tag_node_name + ':' + self.TYPE_INT + ':Input03'
+        tag_node_input03_name = tag_node_name + ':' + self.TYPE_FLOAT + ':Input03'
         tag_node_input03_value_name = tag_node_name + ':' + self.TYPE_FLOAT + ':Input03Value'
-        tag_node_input04_name = tag_node_name + ':' + self.TYPE_INT + ':Input04'
+        tag_node_input04_name = tag_node_name + ':' + self.TYPE_FLOAT + ':Input04'
         tag_node_input04_value_name = tag_node_name + ':' + self.TYPE_FLOAT + ':Input04Value'
+        tag_node_input05_name = tag_node_name + ':' + self.TYPE_INT + ':Input05'
+        tag_node_input05_value_name = tag_node_name + ':' + self.TYPE_INT + ':Input05Value'
         tag_node_output01_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01'
         tag_node_output01_value_name = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         tag_node_output02_name = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02'
@@ -78,9 +80,9 @@ class Node(DpgNodeABC):
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
 
         # 初期化用黒画像
-        self.black_image = np.zeros((small_window_w, small_window_h, 3))
+        black_image = np.zeros((small_window_w, small_window_h, 3))
         black_texture = convert_cv_to_dpg(
-            self.black_image,
+            black_image,
             small_window_w,
             small_window_h,
         )
@@ -157,6 +159,19 @@ class Node(DpgNodeABC):
                     max_value=self._beta_max,
                     callback=None,
                 )
+            with dpg.node_attribute(
+                    tag=tag_node_input05_name,
+                    attribute_type=dpg.mvNode_Attr_Input,
+            ):
+                dpg.add_slider_int(
+                    tag=tag_node_input05_value_name,
+                    label="gamma val",
+                    width=small_window_w - 80,
+                    default_value=self._gamma_default,
+                    min_value=self._gamma_min,
+                    max_value=self._gamma_max,
+                    callback=None,
+                )
             # 処理時間
             if use_pref_counter:
                 with dpg.node_attribute(
@@ -180,6 +195,7 @@ class Node(DpgNodeABC):
         tag_node_name = str(node_id) + ':' + self.node_tag
         input_value03_tag = tag_node_name + ':' + self.TYPE_FLOAT + ':Input03Value'
         input_value04_tag = tag_node_name + ':' + self.TYPE_FLOAT + ':Input04Value'
+        input_value05_tag = tag_node_name + ':' + self.TYPE_INT + ':Input05Value'
         output_value01_tag = tag_node_name + ':' + self.TYPE_IMAGE + ':Output01Value'
         output_value02_tag = tag_node_name + ':' + self.TYPE_TIME_MS + ':Output02Value'
 
@@ -192,7 +208,6 @@ class Node(DpgNodeABC):
         frame = None
         frame1 = None
         frame2 = None
-#        frame = self.black_image
         node_name_dict = {}
         connection_info_src = ''
         connection_info_src_dict = {}
@@ -204,7 +219,7 @@ class Node(DpgNodeABC):
             slot_number = int(slot_number) - 1
             connection_type = connection_info[0].split(':')[2]
             connection_tag = connection_info[1].split(':')[3]
-            if connection_type == self.TYPE_INT:
+            if connection_type == self.TYPE_FLOAT:
                 # 接続タグ取得
                 source_tag = connection_info[0] + 'Value'
                 destination_tag = connection_info[1] + 'Value'
@@ -214,8 +229,18 @@ class Node(DpgNodeABC):
                     input_value = max([self._alpha_min, input_value])
                     input_value = min([self._alpha_max, input_value])
                 if connection_tag == 'Input04':
-                    input_value = max([self._alpha_min, input_value])
-                    input_value = min([self._alpha_max, input_value])
+                    input_value = max([self._beta_min, input_value])
+                    input_value = min([self._beta_max, input_value])
+                dpg_set_value(destination_tag, input_value)
+            if connection_type == self.TYPE_INT:
+                # 接続タグ取得
+                source_tag = connection_info[0] + 'Value'
+                destination_tag = connection_info[1] + 'Value'
+                # 値更新
+                input_value = int(dpg_get_value(source_tag))
+                if connection_tag == 'Input05':
+                    input_value = max([self._gamma_min, input_value])
+                    input_value = min([self._gamma_max, input_value])
                 dpg_set_value(destination_tag, input_value)
             if connection_type == self.TYPE_IMAGE:
                 # 画像取得元のノード名(ID付き)を取得
@@ -230,7 +255,6 @@ class Node(DpgNodeABC):
 
         if len(connection_info_src_dict) == 1:
             connected_first_slot_no = (next(iter(connection_info_src_dict)))
-            print(connection_info_src_dict)
             frame1 = node_image_dict.get(connection_info_src_dict[connected_first_slot_no])
             frame = frame1
         if len(connection_info_src_dict) == 2:
@@ -241,7 +265,7 @@ class Node(DpgNodeABC):
         # アルファブレンド
         alpha_val = float(dpg_get_value(input_value03_tag))
         beta_val = float(dpg_get_value(input_value04_tag))
-        gamma_val = self._gamma_default
+        gamma_val = int(dpg_get_value(input_value05_tag))
 
         # 計測開始
         if frame is not None and use_pref_counter:
