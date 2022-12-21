@@ -125,7 +125,7 @@ def main():
     # Serial接続デバイスチェック
     print('**** Check Serial Device Connection ********')
     serial_device_no_list = check_serial_connection()
-    serial_connection_list=[]
+    serial_connection_list = []
     for serial_device_no in serial_device_no_list:
         ser = serial.Serial(serial_device_no,115200)
         serial_connection_list.append(ser)

@@ -192,3 +192,4 @@ class Node(DpgNodeABC):
 
     def set_setting_dict(self, node_id, setting_dict):
         pass
+

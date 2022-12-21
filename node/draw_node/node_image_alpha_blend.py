@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 import time
 import re
-#import copy
-
 import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg

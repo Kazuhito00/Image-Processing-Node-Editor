@@ -40,6 +40,7 @@ def check_camera_connection(max_device_count=4, is_debug=False):
 
 def check_serial_connection(is_debug=False):
     serial_device_no_list=[]
+    
     if sys.platform.startswith('win'):
         ports = ['COM%s' % (i + 1) for i in range(256)]
     elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
