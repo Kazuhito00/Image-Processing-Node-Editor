@@ -14,6 +14,7 @@ from node_editor.util import convert_cv_to_dpg
 
 from node.deep_learning_node.object_detection.YOLOX.yolox import YOLOX
 from node.deep_learning_node.object_detection.LightWeightPersonDetector.detector import LWPDetector
+from node.deep_learning_node.object_detection.FreeYOLO.freeyolo import FreeYOLO
 
 from node.deep_learning_node.object_detection.coco_class_names import coco_class_names
 from node.deep_learning_node.object_detection.coco_class_names_only_person import coco_class_names_only_person
@@ -38,8 +39,12 @@ class Node(DpgNodeABC):
         'YOLOX-Tiny(416x416)': YOLOX,
         'YOLOX-S(640x640)': YOLOX,
         'Light-Weight Person Detector': LWPDetector,
+        'YOLOX-Nano(416x416)': YOLOX,
+        'FreeYOLO-Nano(640x640)': FreeYOLO,
+        'FreeYOLO-Nano-CrowdHuman(640x640)': FreeYOLO,
     }
-    _model_base_path = os.path.dirname(os.path.abspath(__file__)) + '/object_detection/'
+    _model_base_path = os.path.dirname(
+        os.path.abspath(__file__)) + '/object_detection/'
     _model_path_setting = {
         'YOLOX-Nano(416x416)':
         _model_base_path + 'YOLOX/model/yolox_nano.onnx',
@@ -47,14 +52,19 @@ class Node(DpgNodeABC):
         _model_base_path + 'YOLOX/model/yolox_tiny.onnx',
         'YOLOX-S(640x640)':
         _model_base_path + 'YOLOX/model/yolox_s.onnx',
-        'Light-Weight Person Detector':
-        _model_base_path + 'LightWeightPersonDetector/model/model.onnx',
+        'FreeYOLO-Nano(640x640)':
+        _model_base_path + 'FreeYOLO/model/yolo_free_nano_640x640.onnx',
+        'FreeYOLO-Nano-CrowdHuman(640x640)':
+        _model_base_path +
+        'FreeYOLO/model/yolo_free_nano_crowdhuman_640x640.onnx',
     }
     _model_class_name_list = {
         'YOLOX-Nano(416x416)': coco_class_names,
         'YOLOX-Tiny(416x416)': coco_class_names,
         'YOLOX-S(640x640)': coco_class_names,
         'Light-Weight Person Detector': coco_class_names_only_person,
+        'FreeYOLO-Nano(640x640)': coco_class_names,
+        'FreeYOLO-Nano-CrowdHuman(640x640)': coco_class_names_only_person,
     }
 
     _model_instance = {}
@@ -145,17 +155,17 @@ class Node(DpgNodeABC):
                     tag=tag_node_input02_value_name,
                 )
             if use_gpu:
-	            # CPU/GPU切り替え
-	            with dpg.node_attribute(
-	                    tag=tag_provider_select_name,
-	                    attribute_type=dpg.mvNode_Attr_Static,
-	            ):
-	                dpg.add_radio_button(
-	                    ("CPU", "GPU"),
-	                    tag=tag_provider_select_value_name,
-	                    default_value='CPU',
-	                    horizontal=True,
-	                )
+                # CPU/GPU切り替え
+                with dpg.node_attribute(
+                        tag=tag_provider_select_name,
+                        attribute_type=dpg.mvNode_Attr_Static,
+                ):
+                    dpg.add_radio_button(
+                        ("CPU", "GPU"),
+                        tag=tag_provider_select_value_name,
+                        default_value='CPU',
+                        horizontal=True,
+                    )
             # スコア閾値
             with dpg.node_attribute(
                     tag=tag_node_input03_name,
@@ -231,7 +241,7 @@ class Node(DpgNodeABC):
         # CPU/GPU選択状態取得
         provider = 'CPU'
         if use_gpu:
-        	provider = dpg_get_value(tag_provider_select_value_name)
+            provider = dpg_get_value(tag_provider_select_value_name)
 
         # モデル情報取得
         model_name = dpg_get_value(input_value02_tag)
