@@ -16,7 +16,6 @@ def convert_cv_to_dpg(image, width, height):
 
     return texture_data
 
-
 def check_camera_connection(max_device_count=4, is_debug=False):
     device_no_list = []
 
@@ -36,6 +35,30 @@ def check_camera_connection(max_device_count=4, is_debug=False):
 
     return device_no_list
 
+def check_serial_connection(is_debug=False):
+    import glob
+    import serial
+    import sys
+    serial_device_no_list=[]
+    serial_device_no_list=[]
+    if sys.platform.startswith('win'):
+        ports = ['COM%s' % (i + 1) for i in range(256)]
+    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+        # this excludes your current terminal "/dev/tty"
+        ports = glob.glob('/dev/tty[A-Za-z]*')
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.*')
+    else:
+        raise EnvironmentError('Unsupported platform')
+
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            serial_device_no_list.append(port)
+        except (OSError, serial.SerialException):
+            pass
+    return serial_device_no_list
 
 def dpg_set_value(tag, value):
     if dpg.does_item_exist(tag):

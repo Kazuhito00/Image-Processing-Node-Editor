@@ -127,6 +127,26 @@ def main():
     editor_width = opencv_setting_dict['editor_width']
     editor_height = opencv_setting_dict['editor_height']
 
+    # Serial接続デバイスチェック
+    serial_device_no_list = []
+    serial_connection_list = []
+    use_serial = opencv_setting_dict['use_serial']
+    if use_serial == True:
+        import serial
+        try:
+            from .node_editor.util import check_serial_connection
+        except:
+            from node_editor.util import check_serial_connection
+        print('**** Check Serial Device Connection ********')
+        serial_device_no_list = check_serial_connection()
+        for serial_device_no in serial_device_no_list:
+            ser = serial.Serial(serial_device_no,115200)
+            serial_connection_list.append(ser)
+        
+    # Serial接続デバイス設定保持
+    opencv_setting_dict['serial_device_no_list'] = serial_device_no_list
+    opencv_setting_dict['serial_connection_list'] = serial_connection_list
+
     print('**** DearPyGui Setup ********')
     dpg.create_context()
     dpg.setup_dearpygui()
