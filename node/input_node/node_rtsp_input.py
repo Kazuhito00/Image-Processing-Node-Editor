@@ -20,7 +20,8 @@ def receive_image_process(rtsp_url, image_queue, request):
         ret, frame = rtsp_capture.read()
 
         if ret:
-            image_queue.put(frame)
+            if image_queue.qsize() == 0:
+                image_queue.put(frame)
             time.sleep(0.001)
         else:
             # 取得失敗時は1秒待ち再接続
