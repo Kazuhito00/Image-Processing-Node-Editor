@@ -317,6 +317,17 @@ Read the node settings(json file) output by Export<br>
             The input image is assumed to be an equirectangular projection image
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Resize
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/210739536-5f70e55a-3433-4325-81e2-79619943bd9f.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            A node that resizes the input image with the specified height, width and interpolation method and outputs the image.
+        </td>
+    </tr>
 </table>
 </details>
 
