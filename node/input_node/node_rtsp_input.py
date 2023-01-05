@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
+import multiprocessing as mp
 
 import cv2
 import numpy as np
@@ -10,6 +11,27 @@ from node_editor.util import dpg_get_value, dpg_set_value
 
 from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
+
+
+def receive_image_process(rtsp_url, image_queue, request):
+    rtsp_capture = cv2.VideoCapture(rtsp_url)
+
+    while True:
+        ret, frame = rtsp_capture.read()
+
+        if ret:
+            image_queue.put(frame)
+            time.sleep(0.001)
+        else:
+            # 取得失敗時は1秒待ち再接続
+            time.sleep(1)
+            rtsp_capture.release()
+            rtsp_capture = cv2.VideoCapture(rtsp_url)
+
+        # 0指定時はプロセスを終了する
+        if request.value == 0:
+            rtsp_capture.release()
+            break
 
 
 class Node(DpgNodeABC):
@@ -23,6 +45,10 @@ class Node(DpgNodeABC):
     _stop_label = 'Stop'
 
     _rtsp_capture = {}
+
+    _image_queue = {}
+    _request = {}
+    _process = {}
 
     def __init__(self):
         pass
@@ -135,14 +161,24 @@ class Node(DpgNodeABC):
         small_window_h = self._opencv_setting_dict['input_window_height']
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
 
+        # multiprocessing使用有無
+        use_mp = self._opencv_setting_dict['use_multiprocessing_rtsp']
+
         # RTSP URL取得
         rtsp_url = dpg_get_value(input_value01_tag)
 
         # VideoCapture()インスタンス取得
         rtsp_capture = None
+        image_queue = None
         if rtsp_url != '':
-            if rtsp_url in self._rtsp_capture:
-                rtsp_capture = self._rtsp_capture[rtsp_url]
+            if use_mp:
+                # multiprocessing使用
+                if rtsp_url in self._image_queue:
+                    image_queue = self._image_queue[rtsp_url]
+            else:
+                # multiprocessing未使用
+                if rtsp_url in self._rtsp_capture:
+                    rtsp_capture = self._rtsp_capture[rtsp_url]
 
         # 計測開始
         if rtsp_url != '' and use_pref_counter:
@@ -150,10 +186,18 @@ class Node(DpgNodeABC):
 
         # 画像取得
         frame = None
-        if rtsp_capture is not None:
-            ret, frame = rtsp_capture.read()
-            if not ret:
-                return None, None
+        if use_mp:
+            # multiprocessing使用
+            if image_queue is not None:
+                num = image_queue.qsize()
+                if num > 0:
+                    frame = image_queue.get()
+        else:
+            # multiprocessing未使用
+            if rtsp_capture is not None:
+                ret, frame = rtsp_capture.read()
+                if not ret:
+                    return None, None
 
         # 計測終了
         if rtsp_url != '' and use_pref_counter:
@@ -174,7 +218,14 @@ class Node(DpgNodeABC):
         return frame, None
 
     def close(self, node_id):
-        pass
+        # multiprocessing使用有無
+        use_mp = self._opencv_setting_dict['use_multiprocessing_rtsp']
+        if use_mp:
+            # multiprocessing使用
+            for rtsp_url in self._process.keys():
+                self._request[rtsp_url].value = 0
+                if self._process[rtsp_url].is_alive():
+                    self._process[rtsp_url].terminate()
 
     def get_setting_dict(self, node_id):
         tag_node_name = str(node_id) + ':' + self.node_tag
@@ -208,17 +259,44 @@ class Node(DpgNodeABC):
         # RTSP URL取得
         rtsp_url = dpg_get_value(input_value01_tag)
 
+        # multiprocessing使用有無
+        use_mp = self._opencv_setting_dict['use_multiprocessing_rtsp']
+
         if label == self._start_label:
             if rtsp_url != '':
-                if not (rtsp_url in self._rtsp_capture):
-                    rtsp_capture = cv2.VideoCapture(rtsp_url)
-                    self._rtsp_capture[rtsp_url] = rtsp_capture
+                if use_mp:
+                    # multiprocessing使用
+                    if not (rtsp_url in self._process):
+                        self._image_queue[rtsp_url] = mp.Queue(maxsize=1)
+                        self._request[rtsp_url] = mp.Value('i', 1)
+                        self._process[rtsp_url] = mp.Process(
+                            target=receive_image_process,
+                            args=(rtsp_url, self._image_queue[rtsp_url],
+                                  self._request[rtsp_url]),
+                        )
+                        self._process[rtsp_url].start()
+                else:
+                    # multiprocessing未使用
+                    if not (rtsp_url in self._rtsp_capture):
+                        rtsp_capture = cv2.VideoCapture(rtsp_url)
+                        self._rtsp_capture[rtsp_url] = rtsp_capture
 
             dpg.set_item_label(tag_node_button_value_name, self._stop_label)
         elif label == self._stop_label:
             if rtsp_url != '':
-                if rtsp_url in self._rtsp_capture:
-                    self._rtsp_capture[rtsp_url].release()
-                    del self._rtsp_capture[rtsp_url]
+                if use_mp:
+                    # multiprocessing使用
+                    if rtsp_url in self._request:
+                        self._request[rtsp_url].value = 0
+                        if self._process[rtsp_url].is_alive():
+                            self._process[rtsp_url].terminate()
+                        self._image_queue.pop(rtsp_url)
+                        self._request.pop(rtsp_url)
+                        self._process.pop(rtsp_url)
+                else:
+                    # multiprocessing未使用
+                    if rtsp_url in self._rtsp_capture:
+                        self._rtsp_capture[rtsp_url].release()
+                        self._rtsp_capture.pop(rtsp_url)
 
             dpg.set_item_label(tag_node_button_value_name, self._start_label)

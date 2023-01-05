@@ -16,5 +16,6 @@
     "use_pref_counter": true,
     "draw_info_on_result":true,
     "use_gpu":true,
-    "use_serial":false
+    "use_serial":false,
+    "use_multiprocessing_rtsp":false
 }
