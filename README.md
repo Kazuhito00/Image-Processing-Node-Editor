@@ -318,6 +318,17 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             入力画像は正距円筒図法の画像を想定
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Resize
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/210739536-5f70e55a-3433-4325-81e2-79619943bd9f.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            入力画像を指定の高さ、幅、補間方法でリサイズして、画像を出力するノード
+        </td>
+    </tr>
 </table>
 </details>
 
