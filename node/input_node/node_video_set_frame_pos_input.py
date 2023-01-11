@@ -85,6 +85,7 @@ class Node(DpgNodeABC):
                 directory_selector=False,
                 show=False,
                 modal=True,
+                width=int(small_window_w * 3 / self._window_resize_rate),
                 height=int(small_window_h * 3 / self._window_resize_rate),
                 callback=self._callback_file_select,
                 id='movie_select:' + str(node_id),
