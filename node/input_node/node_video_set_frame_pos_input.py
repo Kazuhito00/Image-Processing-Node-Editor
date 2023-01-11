@@ -173,21 +173,19 @@ class Node(DpgNodeABC):
         use_pref_counter = self._opencv_setting_dict['use_pref_counter']
 
         # 接続情報確認
-        seek_destination_tag = None
         seek_input_value = None
         for connection_info in connection_list:
             connection_type = connection_info[0].split(':')[2]
             if connection_type == self.TYPE_INT:
                 # 接続タグ取得
                 source_tag = connection_info[0] + 'Value'
-                seek_destination_tag = connection_info[1] + 'Value'
                 # 値取得
-                temp = dpg_get_value(source_tag)
                 seek_input_value = int(dpg_get_value(source_tag))
                 seek_input_value = max([self._min_val, seek_input_value])
                 seek_input_value = min([self._max_val, seek_input_value])
 
         # VideoCapture()インスタンス生成
+        update_flag = False
         movie_path = self._movie_filepath.get(str(node_id), None)
         prev_movie_path = self._prev_movie_filepath.get(str(node_id), None)
         if prev_movie_path != movie_path:
@@ -196,6 +194,13 @@ class Node(DpgNodeABC):
                 video_capture.release()
             self._video_capture[str(node_id)] = cv2.VideoCapture(movie_path)
             self._prev_movie_filepath[str(node_id)] = movie_path
+
+            # シーク位置リセット
+            self._video_capture[str(node_id)].set(cv2.CAP_PROP_POS_FRAMES, 0)
+            # フレーム数リセット
+            dpg_set_value(tag_node_input02_value_name, 0)
+            dpg_set_value(output_value03_tag, str(0))
+            update_flag = True
 
         video_capture = self._video_capture.get(str(node_id), None)
 
@@ -223,9 +228,8 @@ class Node(DpgNodeABC):
 
             if seek_input_value is not None:
                 seek_set_value = int(self._max_val * (frame_pos / total_frame))
-                dpg_set_value(seek_destination_tag, seek_set_value)
+                dpg_set_value(output_value03_tag, seek_set_value)
 
-            update_flag = False
             if str(node_id) in self._prev_frame_pos:
                 # フレーム位置が変更されていたら画像を取得
                 if self._prev_frame_pos[str(node_id)] != frame_pos:
