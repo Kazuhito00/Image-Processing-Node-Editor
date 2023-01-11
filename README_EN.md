@@ -115,6 +115,18 @@ Read the node settings(json file) output by Export<br>
     </tr>
     <tr>
         <td width="200">
+            Video(Set Frame Position)
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/211860076-00b700a5-18e1-46cc-ae30-376976d54f63.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            A node that reads a video (mp4, avi) and outputs an image at the specified frame position<br>
+            Open the file dialog with "Select Movie" button
+        </td>
+    </tr>
+    <tr>
+        <td width="200">
             WebCam
         </td>
         <td width="320">
