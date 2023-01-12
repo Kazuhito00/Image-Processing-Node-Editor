@@ -28,7 +28,7 @@ class Node(DpgNodeABC):
     _prev_frame = {}
 
     _min_val = 0
-    _max_val = 100000
+    _max_val = 10000000
 
     _window_resize_rate = 1.5
 
@@ -222,14 +222,16 @@ class Node(DpgNodeABC):
             else:
                 frame_pos = seek_input_value
 
+            # 範囲チェック
             if frame_pos < 0:
                 frame_pos = 0
             if total_frame <= frame_pos:
                 frame_pos = total_frame - 1
 
+            # シーク位置が他ノードから入力されていた場合はシークバーの位置を変更
             if seek_input_value is not None:
                 seek_set_value = int(self._max_val * (frame_pos / total_frame))
-                dpg_set_value(output_value03_tag, seek_set_value)
+                dpg_set_value(tag_node_input02_value_name, seek_set_value)
 
             if str(node_id) in self._prev_frame_pos:
                 # フレーム位置が変更されていたら画像を取得
