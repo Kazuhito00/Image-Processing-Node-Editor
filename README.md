@@ -624,6 +624,17 @@ Exportで出力したノード設定(jsonファイル)を読み込む<br>
             出力画像用の変数は「output_image」
         </td>
     </tr>
+    <tr>
+        <td width="200">
+            Screen Capture
+        </td>
+        <td width="320">
+            <img src="https://user-images.githubusercontent.com/37477845/216200610-5a5714c0-99ac-4ec9-a56e-90ae99088815.png" loading="lazy" width="300px">
+        </td>
+        <td width="760">
+            デスクトップ全画面をキャプチャして出力するノード<br>
+        </td>
+    </tr>
 </table>
 </details>
 
