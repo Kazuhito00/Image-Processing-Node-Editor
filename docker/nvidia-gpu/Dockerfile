@@ -31,8 +31,5 @@ lap==0.4.0 \
 cython-bbox==0.1.3 \
 rich==12.4.4
 
-# RUN pip uninstall -y numpy
-# RUN pip install numpy==1.23.5
-
 WORKDIR /workspace
 CMD ["python3", "main.py"]
