@@ -18,7 +18,7 @@ rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip
 
 # For error avoidance
-RUN pip install --upgrade cython numpy
+RUN pip install --upgrade cython numpy==1.23.5
 
 RUN pip install \
 opencv-contrib-python==4.5.5.64 \
@@ -30,6 +30,9 @@ filterpy==1.4.5 \
 lap==0.4.0 \
 cython-bbox==0.1.3 \
 rich==12.4.4
+
+# RUN pip uninstall -y numpy
+# RUN pip install numpy==1.23.5
 
 WORKDIR /workspace
 CMD ["python3", "main.py"]
