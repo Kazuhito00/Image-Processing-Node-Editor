@@ -11,6 +11,8 @@
 画像処理における基本的な処理を担うノードが不足していることがあります。<br>
 
 # Requirement
+> **Warning**<br>
+> 2023/5/22時点：`dearpygui`を`1.9.1`にアップデートするとノード接続が出来ないため<br>`1.9.0`以下をインストールしてください ※原因調査中
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
