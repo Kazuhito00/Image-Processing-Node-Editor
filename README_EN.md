@@ -11,6 +11,10 @@ Since the nodes are added in the order in which the author(Takahashi) needs them
 There may be a shortage of nodes responsible for basic processing in image processing.<br>
 
 # Requirement
+
+> **Warning**<br>
+> As of May 22, 2023: If you update `dearpygui` to `1.9.1`, you will not be able to connect to the node<br>Please install `1.9.0` or below *Under investigation
+
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
