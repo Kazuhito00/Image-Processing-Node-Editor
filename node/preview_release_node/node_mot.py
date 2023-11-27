@@ -12,8 +12,8 @@ from node.node_abc import DpgNodeABC
 from node_editor.util import convert_cv_to_dpg
 
 from node.preview_release_node.mot.motpy.motpy import Motpy
-from node.preview_release_node.mot.bytetrack.mc_bytetrack import MultiClassByteTrack
-from node.preview_release_node.mot.norfair.mc_norfair import MultiClassNorfair
+# from node.preview_release_node.mot.bytetrack.mc_bytetrack import MultiClassByteTrack
+# from node.preview_release_node.mot.norfair.mc_norfair import MultiClassNorfair
 
 from node.draw_node.draw_util.draw_util import draw_multi_object_tracking_info
 
@@ -29,8 +29,8 @@ class Node(DpgNodeABC):
     # モデル設定
     _model_class = {
         'motpy': Motpy,
-        'ByteTrack': MultiClassByteTrack,
-        'Norfair': MultiClassNorfair,
+        # 'ByteTrack': MultiClassByteTrack,
+        # 'Norfair': MultiClassNorfair,
     }
 
     _model_instance = {}
@@ -267,8 +267,7 @@ class Node(DpgNodeABC):
 
         # 描画
         if frame is not None:
-            if src_node_name == 'ObjectDetection' or \
-                src_node_name == 'Classification':
+            if src_node_name == 'ObjectDetection' or src_node_name == 'Classification':
                 # 描画
                 debug_frame = copy.deepcopy(frame)
                 debug_frame = draw_multi_object_tracking_info(
