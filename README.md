@@ -11,6 +11,8 @@
 画像処理における基本的な処理を担うノードが不足していることがあります。<br>
 
 # Requirement
+> **Warning**<br>
+> 2023/5/22時点：`dearpygui`を`1.9.1`にアップデートするとノード接続が出来ないため<br>`1.9.0`以下をインストールしてください ※原因調査中
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
@@ -668,6 +670,7 @@ Image-Processing-Node-Editor で使用するには、各リポジトリのイン
 - [ ] RGB Histgramノードのグラフ部分が常に最前面に表示される問題の調査
 - [ ] 複数ノードを接続したノードを削除した際に接続線が残る問題の調査
 - [ ] Import機能がノード追加前にしか利用できない挙動の修正
+- [ ] `dearpygui`を`1.9.1`にアップデートするとノード接続が出来ない問題の調査
   
 # Author
 高橋かずひと(https://twitter.com/KzhtTkhs)

@@ -18,7 +18,7 @@ rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip
 
 # For error avoidance
-RUN pip install --upgrade cython numpy
+RUN pip install --upgrade cython numpy==1.23.5
 
 RUN pip install \
 opencv-contrib-python==4.5.5.64 \
