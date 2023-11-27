@@ -16,22 +16,10 @@
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
-dearpygui       1.6.2    or later
+dearpygui       1.9.0    or later
 mediapipe       0.8.10   or later ※mediapipeノード実行に必要
 protobuf        3.20.0   or later ※mediapipeノード実行に必要
 filterpy        1.4.5    or later ※motpyノード実行に必要
-lap             0.4.0    or later ※ByteTrackノード実行に必要
-Cython          0.29.30  or later ※ByteTrackノード実行に必要
-cython-bbox     0.1.3    or later ※ByteTrackノード実行に必要
-rich            12.4.4   or later ※Norfairノード実行に必要
-```
-
-※Windowsでcython_bbox のインストールが失敗する場合は、numpy、Cythonをインストールしてから<br>　cython-bboxはGitHubからのインストールをお試しください(2022/06/05時点)<br>
-
-```
-pip install numpy
-pip install Cython
-pip install -e git+https://github.com/samson-wang/cython_bbox.git#egg=cython-bbox
 ```
 
 # Installation

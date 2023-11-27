@@ -18,22 +18,10 @@ There may be a shortage of nodes responsible for basic processing in image proce
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
-dearpygui       1.6.2    or later
+dearpygui       1.9.0    or later
 mediapipe       0.8.10   or later ※Required to run mediapipe node
 protobuf        3.20.0   or later ※Required to run mediapipe node
 filterpy        1.4.5    or later ※Required to run MOT(motpy) node
-lap             0.4.0    or later ※Required to run MOT(ByteTrack) node
-Cython          0.29.30  or later ※Required to run MOT(ByteTrack) node
-cython-bbox     0.1.3    or later ※Required to run MOT(ByteTrack) node
-rich            12.4.4   or later ※Required to run MOT(Norfair) node
-```
-
-*If the installation of cython_bbox fails on Windows, please try the installation from GitHub (as of 2022/06/05).<br>
-
-```
-pip install numpy
-pip install Cython
-pip install -e git+https://github.com/samson-wang/cython_bbox.git#egg=cython-bbox
 ```
 
 # Installation
