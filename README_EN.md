@@ -657,6 +657,7 @@ To use it with Image-Processing-Node-Editor, follow the installation instruction
 - [ ] Investigating the problem that the connection line remains when deleting a node that connects multiple nodes
 - [ ] Improved behavior that the import feature can only be used before adding a node
 - [ ] Investigation the problem that node connection is not possible after updating `dearpygui` to `1.9.1`
+- [ ] Considering how to use `lapx` as an alternative since `lap` does not support newer versions of Python
   
 # Author
 Kazuhito Takahashi(https://twitter.com/KzhtTkhs)
