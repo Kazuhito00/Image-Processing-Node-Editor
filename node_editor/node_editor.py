@@ -162,7 +162,6 @@ class DpgNodeEditor(object):
             with dpg.node_editor(
                     tag=self._node_editor_tag,
                     callback=self._callback_link,
-                    delink_callback=self._callback_delink,
                     minimap=True,
                     minimap_location=dpg.mvNodeMiniMap_Location_BottomRight,
             ):
@@ -245,25 +244,27 @@ class DpgNodeEditor(object):
 
     def _callback_link(self, sender, data):
         # 各接続子の型を取得
-        source_type = data[0].split(':')[2]
-        destination_type = data[1].split(':')[2]
+        source = dpg.get_item_alias(data[0])
+        destination = dpg.get_item_alias(data[1])
+        source_type = source.split(':')[2]
+        destination_type = destination.split(':')[2]
 
         # 型が一致するもののみ処理
         if source_type == destination_type:
             # 初回ノード生成時
             if len(self._node_link_list) == 0:
-                dpg.add_node_link(data[0], data[1], parent=sender)
-                self._node_link_list.append([data[0], data[1]])
+                dpg.add_node_link(source, destination, parent=sender)
+                self._node_link_list.append([source, destination])
             # 2回目以降
             else:
                 # 入力端子に複数接続しようとしていないかチェック
                 duplicate_flag = False
                 for node_link in self._node_link_list:
-                    if data[1] == node_link[1]:
+                    if destination == node_link[1]:
                         duplicate_flag = True
                 if not duplicate_flag:
-                    dpg.add_node_link(data[0], data[1], parent=sender)
-                    self._node_link_list.append([data[0], data[1]])
+                    dpg.add_node_link(source, destination, parent=sender)
+                    self._node_link_list.append([source, destination])
 
         # ノードグラフ再生成
         self._node_connection_dict = self._sort_node_graph(
@@ -274,38 +275,13 @@ class DpgNodeEditor(object):
         if self._use_debug_print:
             print('**** _callback_link ****')
             print('    sender                     : ' + str(sender))
-            print('    data                       : ' + ', '.join(data))
+            print('    data                       : ', data)
             print('    self._node_list            :    ', self._node_list)
             print('    self._node_link_list       : ', self._node_link_list)
             print('    self._node_connection_dict : ',
                   self._node_connection_dict)
             print()
 
-    def _callback_delink(self, sender, data):
-        # リンクリストから削除
-        self._node_link_list.remove([
-            dpg.get_item_configuration(data)['attr_1'],
-            dpg.get_item_configuration(data)['attr_2']
-        ])
-
-        # ノードグラフ再生成
-        self._node_connection_dict = self._sort_node_graph(
-            self._node_list,
-            self._node_link_list,
-        )
-
-        # アイテム削除
-        dpg.delete_item(data)
-
-        if self._use_debug_print:
-            print('**** _callback_delink ****')
-            print('    sender                     : ' + str(sender))
-            print('    data                       : ' + str(data))
-            print('    self._node_list            :    ', self._node_list)
-            print('    self._node_link_list       : ', self._node_link_list)
-            print('    self._node_connection_dict : ',
-                  self._node_connection_dict)
-            print()
 
     def _callback_close_window(self, sender):
         dpg.delete_item(sender)
@@ -316,16 +292,16 @@ class DpgNodeEditor(object):
 
         # ノードIDとノード接続を辞書形式で整理
         for node_link_info in node_link_list:
-            source_id = int(node_link_info[0].split(':')[0])
-            destination_id = int(node_link_info[1].split(':')[0])
+            source = dpg.get_item_alias(node_link_info[0])
+            destination = dpg.get_item_alias(node_link_info[1])
+            source_id = int(source.split(':')[0])
+            destination_id = int(destination.split(':')[0])
 
             if destination_id not in node_id_dict:
                 node_id_dict[destination_id] = [source_id]
             else:
                 node_id_dict[destination_id].append(source_id)
 
-            source = node_link_info[0]
-            destination = node_link_info[1]
             split_destination = destination.split(':')
 
             node_name = split_destination[0] + ':' + split_destination[1]
@@ -530,6 +506,19 @@ class DpgNodeEditor(object):
 
                 # アイテム削除
                 dpg.delete_item(item_id)
+
+        if len(dpg.get_selected_links(self._node_editor_tag)) > 0:
+            self._node_link_list.remove([
+                dpg.get_item_alias(dpg.get_item_configuration(dpg.get_selected_links(self._node_editor_tag)[0])['attr_1']),
+                dpg.get_item_alias(dpg.get_item_configuration(dpg.get_selected_links(self._node_editor_tag)[0])['attr_2'])
+            ])
+
+            self._node_connection_dict = self._sort_node_graph(
+                self._node_list,
+                self._node_link_list,
+            )
+
+            dpg.delete_item(dpg.get_selected_links(self._node_editor_tag)[0])
 
         if self._use_debug_print:
             print('**** _callback_mv_key_del ****')
