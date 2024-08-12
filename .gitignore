@@ -133,3 +133,9 @@ dmypy.json
 
 # Mac
 .DS_Store
+
+# PyInstaller
+main_win64.spec
+icon.ico
+dist
+build
