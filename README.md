@@ -10,13 +10,10 @@
 ノードは作成者(高橋)が必要になった順に追加しているため、<br>
 画像処理における基本的な処理を担うノードが不足していることがあります。<br>
 
-# Requirement
-> **Warning**<br>
-> 2023/5/22時点：`dearpygui`を`1.9.1`にアップデートするとノード接続が出来ないため<br>`1.9.0`以下をインストールしてください ※原因調査中
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
-dearpygui       1.9.0    or later
+dearpygui       1.11.0   or later
 mediapipe       0.8.10   or later ※mediapipeノード実行に必要
 protobuf        3.20.0   or later ※mediapipeノード実行に必要
 filterpy        1.4.5    or later ※motpyノード実行に必要

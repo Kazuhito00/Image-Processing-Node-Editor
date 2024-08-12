@@ -21,12 +21,12 @@ RUN pip install --upgrade pip
 RUN pip install --upgrade cython numpy==1.23.5
 
 RUN pip install \
-opencv-contrib-python==4.5.5.64 \
-onnxruntime-gpu==1.12.0 \
-dearpygui==1.9.0 \
-mediapipe==0.8.10 \
-protobuf==3.20.0 \
-filterpy==1.4.5 \
+opencv-contrib-python>=4.5.5.64 \
+onnxruntime-gpu>=1.12.0 \
+dearpygui>=1.11.0 \
+mediapipe>=0.8.10 \
+protobuf>=3.20.0 \
+filterpy>=1.4.5 \
 
 WORKDIR /workspace
 CMD ["python3", "main.py"]

@@ -10,15 +10,10 @@ It is used for processing verification and comparison.<br>
 Since the nodes are added in the order in which the author(Takahashi) needs them,<br>
 There may be a shortage of nodes responsible for basic processing in image processing.<br>
 
-# Requirement
-
-> **Warning**<br>
-> As of May 22, 2023: If you update `dearpygui` to `1.9.1`, you will not be able to connect to the node<br>Please install `1.9.0` or below *Under investigation
-
 ```
 opencv-python   4.5.5.64 or later
 onnxruntime-gpu 1.12.0   or later
-dearpygui       1.9.0    or later
+dearpygui       1.11.0   or later
 mediapipe       0.8.10   or later ※Required to run mediapipe node
 protobuf        3.20.0   or later ※Required to run mediapipe node
 filterpy        1.4.5    or later ※Required to run MOT(motpy) node
