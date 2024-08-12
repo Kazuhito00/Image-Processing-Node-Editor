@@ -28,7 +28,7 @@ filterpy        1.4.5    or later ※motpyノード実行に必要
 * Dockerを利用
     1. [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu) を参照
 * 実行ファイルを利用(Windowsのみ)
-    1. [ipn-editor_win_x86_64.zip](https://github.com/Kazuhito00/Image-Processing-Node-Editor/releases/download/v0.1.1/ipn-editor_win_x86_64.zip)をダウンロード
+    1. [ipn-editor_win_x86_64.zip](https://github.com/Kazuhito00/Image-Processing-Node-Editor/releases/download/v0.4.0/ipn-editor_v0.4.0_win_x86_64.zip)をダウンロード
     1. 「main.exe」を実行 
 * pipインストールを利用<br><b>※インストールされるディレクトリ名が「node」「node_editor」となってしまうため修正予定<br>→pip利用時はvenv等の仮想環境でのインストールを強く推奨 </b>
     1. ビルドツールをインストール<br>Windows：https://visualstudio.microsoft.com/ja/visual-cpp-build-tools/<br>Ubuntu：`sudo apt-get install build-essential libssl-dev libffi-dev python3-dev`

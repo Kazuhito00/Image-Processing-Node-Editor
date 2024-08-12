@@ -28,7 +28,7 @@ Please prepare the environment by one of the following methods.<br>
 * Use Docker
     1. See [Image-Processing-Node-Editor/docker/nvidia-gpu](https://github.com/Kazuhito00/Image-Processing-Node-Editor/tree/main/docker/nvidia-gpu)
 * Use executable file (Windows only)
-    1. Download [ipn-editor_win_x86_64.zip](https://github.com/Kazuhito00/Image-Processing-Node-Editor/releases/download/v0.1.1/ipn-editor_win_x86_64.zip)
+    1. Download [ipn-editor_win_x86_64.zip](https://github.com/Kazuhito00/Image-Processing-Node-Editor/releases/download/v0.4.0/ipn-editor_v0.4.0_win_x86_64.zip)
     1. Run "main.exe"
 * Use pip installation<br><b>※The installed directory names will be "node" and "node_editor", so I plan to fix them in the future.<br>→When using pip, it is strongly recommended to install in a virtual environment such as venv.</b>
     1. Install build tools<br>Windows：https://visualstudio.microsoft.com/ja/visual-cpp-build-tools/<br>Ubuntu：`sudo apt-get install build-essential libssl-dev libffi-dev python3-dev`
