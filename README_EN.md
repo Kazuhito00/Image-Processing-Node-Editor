@@ -657,7 +657,7 @@ Kazuhito Takahashi(https://twitter.com/KzhtTkhs)
  
 # License 
 Image-Processing-Node-Editor is under [Apache-2.0 license](LICENSE).<br><br>
-IThe source code of mage-Processing-Node-Editor itself is [Apache-2.0 license](LICENSE), but <br>
+The source code of Image-Processing-Node-Editor itself is [Apache-2.0 license](LICENSE), but <br>
 The source code for each algorithm is subject to its own license. <br>
 For details, please check the LICENSE file included in each directory.
 
