@@ -1,36 +1,38 @@
 """
 Sink element mapper.
 
-Maps CvStudio output/action nodes to DeepStream sink elements:
-  - VideoWriter → File Sink (mp4/mkv with nvv4l2h264enc)
-  - ImageConcat / Display → Fake Sink or EGL Sink
-  - MQTT → Message Sink (nvmsgbroker)
-  - MongoDB → Message Sink (custom)
+Maps CvStudio output nodes to deepstream-app [sinkN] groups:
+  - VideoWriter / VideoRecorder → type=3 (MP4 file, H.264)
+  - RTMPOutput / Streaming      → type=4 (RTSP server; DeepStream has no RTMP sink)
+  - no output node              → type=4 so the annotated video stays viewable
+                                  on a headless machine
+  - display requested           → type=2 (EGL window)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
-from tools.deepstream_engine.parser import NodeInfo
 from tools.deepstream_engine.hardware_profile import HardwareProfile, RTX_5070_PROFILE
+from tools.deepstream_engine.parser import NodeInfo
 
+FILE_SINK_TAGS = {"VideoWriter", "VideoRecorder"}
+STREAM_SINK_TAGS = {"RTMPOutput", "Streaming"}
+SINK_NODE_TAGS = FILE_SINK_TAGS | STREAM_SINK_TAGS
 
-SINK_NODE_TAGS = {"VideoWriter", "ImageConcat", "MQTT", "MongoDB", "VideoRecorder"}
-
-# Additional nodes that indicate display intent
-DISPLAY_NODE_TAGS = {"Heatmap", "ObjHeatmap", "Chart", "ObjChart", "Map"}
+RTSP_PORT = 8554
+RTSP_MOUNT = "/ds-test"
+_UDP_PORT = 5400
 
 
 @dataclass
 class SinkConfig:
-    """DeepStream sink configuration."""
+    """deepstream-app sink configuration."""
 
     sink_id: int
-    sink_type: str  # "file", "egl", "rtsp", "msg", "fake"
+    sink_type: str  # "file", "rtsp", "egl", "fake"
     output_path: str = ""
-    properties: dict[str, Any] = field(default_factory=dict)
+    rtsp_port: int = 0
     config_entries: dict[str, str] = field(default_factory=dict)
 
 
@@ -38,126 +40,97 @@ def map_sink(
     node: NodeInfo,
     sink_index: int = 0,
     profile: HardwareProfile = RTX_5070_PROFILE,
+    live: bool = True,
+    warnings: list[str] | None = None,
 ) -> SinkConfig | None:
     """Convert a CvStudio output node into a DeepStream sink config."""
-    tag = node.node_tag
-    settings = node.settings
-
-    if tag in ("VideoWriter", "VideoRecorder"):
-        return _map_file_sink(node, sink_index, profile)
-    elif tag == "ImageConcat":
-        return map_display_sink(sink_index, profile)
-    elif tag == "MQTT":
-        return _map_mqtt_sink(node, sink_index, profile)
-    elif tag == "MongoDB":
-        return _map_msgbroker_sink(node, sink_index, profile)
-
+    warnings = warnings if warnings is not None else []
+    if node.node_tag in FILE_SINK_TAGS:
+        return map_file_sink(f"output/output_{node.node_id}.mp4", sink_index, profile)
+    if node.node_tag in STREAM_SINK_TAGS:
+        sink = map_rtsp_sink(sink_index, profile, live)
+        warnings.append(
+            f"{node.node_id}:{node.node_tag}: DeepStream has no RTMP sink; the stream "
+            f"is served over RTSP at rtsp://<host>:{sink.rtsp_port}{RTSP_MOUNT} instead."
+        )
+        return sink
     return None
 
 
-def map_display_sink(sink_index: int = 0, profile: HardwareProfile = RTX_5070_PROFILE) -> SinkConfig:
-    """Create an EGL display sink for visualization."""
+def map_file_sink(
+    output_path: str,
+    sink_index: int = 0,
+    profile: HardwareProfile = RTX_5070_PROFILE,
+) -> SinkConfig:
+    """MP4 file sink with H.264 hardware encoding."""
+    return SinkConfig(
+        sink_id=sink_index,
+        sink_type="file",
+        output_path=output_path,
+        config_entries={
+            "type": "3",
+            "container": "1",  # MP4
+            "codec": "1",  # H.264
+            "enc-type": "0",  # hardware encoder
+            "sync": "0",
+            "bitrate": "8000000",
+            "output-file": output_path,
+            "source-id": "0",
+            "gpu-id": str(profile.gpu_id),
+            "nvbuf-memory-type": str(profile.nvbuf_memory_type),
+        },
+    )
+
+
+def map_rtsp_sink(
+    sink_index: int = 0,
+    profile: HardwareProfile = RTX_5070_PROFILE,
+    live: bool = True,
+) -> SinkConfig:
+    """RTSP server sink; each sink gets its own RTSP and UDP port."""
+    rtsp_port = RTSP_PORT + sink_index
+    return SinkConfig(
+        sink_id=sink_index,
+        sink_type="rtsp",
+        rtsp_port=rtsp_port,
+        config_entries={
+            "type": "4",
+            "codec": "1",
+            "enc-type": "0",
+            "sync": "0" if live else "1",
+            "bitrate": "4000000",
+            "rtsp-port": str(rtsp_port),
+            "udp-port": str(_UDP_PORT + sink_index),
+            "source-id": "0",
+            "gpu-id": str(profile.gpu_id),
+            "nvbuf-memory-type": str(profile.nvbuf_memory_type),
+        },
+    )
+
+
+def map_display_sink(
+    sink_index: int = 0,
+    profile: HardwareProfile = RTX_5070_PROFILE,
+    live: bool = True,
+) -> SinkConfig:
+    """On-screen EGL window (needs an X display)."""
     return SinkConfig(
         sink_id=sink_index,
         sink_type="egl",
         config_entries={
-            "type": "2",  # EGL
-            "sync": "0",
+            "type": "2",
+            "sync": "0" if live else "1",
+            "source-id": "0",
             "gpu-id": str(profile.gpu_id),
-            "width": "1920",
-            "height": "1080",
             "nvbuf-memory-type": str(profile.nvbuf_memory_type),
         },
     )
 
 
 def map_fake_sink(sink_index: int = 0) -> SinkConfig:
-    """Create a fake sink (headless / metadata-only processing)."""
+    """Fake sink (metadata-only processing, nothing rendered)."""
     return SinkConfig(
         sink_id=sink_index,
         sink_type="fake",
-        config_entries={
-            "type": "1",  # Fake sink
-            "enable": "1",
-        },
+        config_entries={"type": "1", "sync": "0", "source-id": "0"},
     )
-
-
-def _map_file_sink(
-    node: NodeInfo,
-    sink_index: int,
-    profile: HardwareProfile,
-) -> SinkConfig:
-    """Map VideoWriter to file sink with hardware encoding."""
-    settings = node.settings
-    output_path = _extract_text_value(settings, "Input01Value", "output/output.mp4")
-
-    return SinkConfig(
-        sink_id=sink_index,
-        sink_type="file",
-        output_path=output_path,
-        config_entries={
-            "type": "3",  # File
-            "container": "1",  # MP4
-            "codec": "1",  # H.264 HW encoder
-            "sync": "0",
-            "bitrate": "8000000",
-            "gpu-id": str(profile.gpu_id),
-            "output-file": output_path,
-        },
-    )
-
-
-def _map_mqtt_sink(
-    node: NodeInfo,
-    sink_index: int,
-    profile: HardwareProfile,
-) -> SinkConfig:
-    """Map MQTT action node to DeepStream message sink."""
-    settings = node.settings
-    broker_url = _extract_text_value(settings, "Input01Value", "localhost")
-    topic = _extract_text_value(settings, "Input02Value", "cvstudio/detections")
-
-    return SinkConfig(
-        sink_id=sink_index,
-        sink_type="msg",
-        config_entries={
-            "type": "6",  # Message sink
-            "msg-conv-config": "msg_conv_config.txt",
-            "msg-broker-proto-lib": "/opt/nvidia/deepstream/deepstream/lib/libnvds_mqtt_proto.so",
-            "msg-broker-conn-str": broker_url,
-            "topic": topic,
-            "msg-conv-msg2p-lib": "/opt/nvidia/deepstream/deepstream/lib/libnvds_utils.so",
-        },
-    )
-
-
-def _map_msgbroker_sink(
-    node: NodeInfo,
-    sink_index: int,
-    profile: HardwareProfile,
-) -> SinkConfig:
-    """Map MongoDB action node to message broker sink."""
-    settings = node.settings
-    conn_str = _extract_text_value(settings, "Input01Value", "mongodb://localhost:27017")
-
-    return SinkConfig(
-        sink_id=sink_index,
-        sink_type="msg",
-        config_entries={
-            "type": "6",
-            "msg-conv-config": "msg_conv_config.txt",
-            "msg-broker-proto-lib": "/opt/nvidia/deepstream/deepstream/lib/libnvds_redis_proto.so",
-            "msg-broker-conn-str": conn_str,
-            "msg-conv-msg2p-lib": "/opt/nvidia/deepstream/deepstream/lib/libnvds_utils.so",
-        },
-    )
-
-
-def _extract_text_value(settings: dict, key_suffix: str, default: str = "") -> str:
-    """Extract a text value from node settings."""
-    for key, value in settings.items():
-        if key.endswith(key_suffix):
-            if isinstance(value, str) and value:
-                return value
-    return default

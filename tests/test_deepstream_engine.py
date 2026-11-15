@@ -244,7 +244,7 @@ class TestSourceMapper:
         )
         source = map_source(node, 0)
         assert source is not None
-        assert source.source_type == "uridecodebin"
+        assert source.source_type == "rtsp"
         assert source.uri == "rtsp://host/stream"
         assert source.config_entries["type"] == "4"
 
@@ -256,7 +256,7 @@ class TestSourceMapper:
         )
         source = map_source(node, 0)
         assert source is not None
-        assert source.source_type == "v4l2src"
+        assert source.source_type == "v4l2"
         assert source.config_entries["type"] == "1"
 
     def test_map_video_source(self):
@@ -267,7 +267,7 @@ class TestSourceMapper:
         )
         source = map_source(node, 0)
         assert source is not None
-        assert source.source_type == "filesrc"
+        assert source.source_type == "file"
         assert "file://" in source.config_entries["uri"]
 
     def test_unsupported_source(self):
@@ -308,7 +308,7 @@ class TestInferenceMapper:
         config = map_inference(node, 0, True)
         assert config is not None
         assert config.output_format == "yolo11"
-        assert config.input_width == 640  # Default size for YOLO11
+        assert config.input_width == 608  # YOLO11Nano is exported at 608x416
 
     def test_map_classification_sgie(self):
         node = NodeInfo(
@@ -327,9 +327,9 @@ class TestInferenceMapper:
             node_tag="SemanticSegmentation",
             settings={},
         )
+        # Segmentation has no DeepStream post-processing in this engine.
         config = map_inference(node, 0, True)
-        assert config is not None
-        assert config.network_type == 2
+        assert config is None
 
 
 class TestTrackerMapper:
@@ -379,9 +379,9 @@ class TestSinkMapper:
                 "5:MQTT:TEXT:Input02Value": "test/topic",
             },
         )
+        # The MQTT node stores no broker settings, so it cannot be converted.
         sink = map_sink(node, 0)
-        assert sink is not None
-        assert sink.sink_type == "msg"
+        assert sink is None
 
 
 # ===========================================================================
@@ -498,7 +498,7 @@ class TestScaffold:
         assert "run.sh" in files
         assert "README.md" in files
         assert ".gitignore" in files
-        assert "convert_models.sh" in files
+        assert "nvdsinfer_custom_impl_cvstudio/nvdsparsebbox_cvstudio.cpp" in files
 
     def test_dockerfile_mentions_target(self, sample_project_json, tmp_dir):
         json_path = tmp_dir / "input.json"
