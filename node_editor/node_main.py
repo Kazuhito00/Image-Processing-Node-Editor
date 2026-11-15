@@ -20,6 +20,7 @@ from node_editor.util import (  # Import shared DearPyGUI lock
     dpg_delete_item,
     schedule_deferred_delete,
 )
+from node_editor.zoom import EditorZoom
 from src.utils.logging import get_logger
 
 # Uptime tracking
@@ -288,6 +289,8 @@ class DpgNodeEditor(object):
         # rendering and starves the async update thread.
         self._pending_close_threads = {}
         self._pending_close_lock = threading.Lock()
+        # Overview mode (Ctrl + mouse wheel): see node_editor/zoom.py
+        self._zoom = EditorZoom()
 
         if menu_dict is None:
             menu_dict = OrderedDict(
@@ -345,6 +348,26 @@ class DpgNodeEditor(object):
                         label="Import",
                         callback=self._callback_file_import_menu,
                         user_data="Menu_File_Import",
+                    )
+
+                with dpg.menu(label="View", tag="Menu_View"):
+                    dpg.add_menu_item(
+                        tag="Menu_View_ZoomOut",
+                        label="Zoom out",
+                        shortcut="Ctrl+Wheel down",
+                        callback=self._callback_zoom_out,
+                    )
+                    dpg.add_menu_item(
+                        tag="Menu_View_ZoomIn",
+                        label="Zoom in",
+                        shortcut="Ctrl+Wheel up",
+                        callback=self._callback_zoom_in,
+                    )
+                    dpg.add_menu_item(
+                        tag="Menu_View_ZoomReset",
+                        label="Normal view (100%)",
+                        shortcut="Ctrl+0",
+                        callback=self._callback_zoom_reset,
                     )
                 
                 # print(menu_dict.items())
@@ -460,6 +483,11 @@ class DpgNodeEditor(object):
                     dpg.mvKey_A,
                     callback=self._callback_select_all,
                 )
+                dpg.add_mouse_wheel_handler(callback=self._callback_mouse_wheel)
+                dpg.add_key_press_handler(
+                    dpg.mvKey_0,
+                    callback=self._callback_zoom_reset_key,
+                )
             
             self.window = window
 
@@ -475,6 +503,60 @@ class DpgNodeEditor(object):
     def get_node_factory(self, node_name):
         return self._node_factory_list.get(node_name, None)
 
+    # ------------------------------------------------------------------ #
+    # Overview mode (zoom out / back to 100 %)
+    # ------------------------------------------------------------------ #
+
+    def _callback_mouse_wheel(self, sender, app_data):
+        if not _is_ctrl_down():
+            return
+        if app_data < 0:
+            self._callback_zoom_out(mouse_pos=dpg.get_mouse_pos(local=False))
+        elif app_data > 0:
+            self._callback_zoom_in()
+
+    def _callback_zoom_out(self, sender=None, app_data=None, user_data=None, mouse_pos=None):
+        with _dpg_lock:
+            if self._zoom.zoom_out(self._node_list, mouse_pos):
+                self._update_zoom_label()
+
+    def _callback_zoom_in(self, sender=None, app_data=None, user_data=None):
+        with _dpg_lock:
+            if self._zoom.zoom_in(self._node_list):
+                self._update_zoom_label()
+
+    def _callback_zoom_reset(self, sender=None, app_data=None, user_data=None):
+        with _dpg_lock:
+            if self._zoom.reset(self._node_list):
+                self._update_zoom_label()
+
+    def _callback_zoom_reset_key(self, sender=None, app_data=None):
+        if _is_ctrl_down():
+            self._callback_zoom_reset()
+
+    def _update_zoom_label(self):
+        label = "View"
+        if self._zoom.is_zoomed_out:
+            label = f"View ({int(round(self._zoom.scale * 100))}%)"
+        dpg.configure_item("Menu_View", label=label)
+
+    def _logical_setting(self, node_id_name, setting):
+        """Express the saved node position at 100 % zoom.
+
+        Node settings are read while the editor may be zoomed out; exports,
+        the clipboard and the undo stack must not depend on the zoom level.
+        """
+        if self._zoom.is_zoomed_out and isinstance(setting, dict) and "pos" in setting:
+            with _dpg_lock:
+                setting["pos"] = self._zoom.logical_pos(node_id_name)
+        return setting
+
+    def get_node_setting_dict(self, node_id_name):
+        """Settings of a node as they must be saved (zoom independent)."""
+        node_id = node_id_name.split(":", 1)[0]
+        node = self._node_instances_list[node_id_name]
+        return self._logical_setting(node_id_name, node.get_setting_dict(node_id))
+
     def set_terminate_flag(self, flag=True):
         self._terminate_flag = flag
 
@@ -489,7 +571,10 @@ class DpgNodeEditor(object):
             last_pos = [0, 0]
 
             if self._last_pos is not None:
-                last_pos = [self._last_pos[0] + 30, self._last_pos[1] + 30]
+                # _last_pos is an on-screen position; nodes are created at
+                # logical (100 % zoom) positions.
+                last_pos = self._zoom.view_to_logical(self._last_pos)
+                last_pos = [last_pos[0] + 30, last_pos[1] + 30]
 
             node = factorynode.add_node(
                 self._node_editor_tag,
@@ -501,6 +586,7 @@ class DpgNodeEditor(object):
             dpg.bind_item_theme(node.tag_node_name, factorynode.style)
             self._node_instances_list[node.tag_node_name] = node
             self._node_list.append(node.tag_node_name)
+            self._zoom.adopt(node.tag_node_name)
 
             if self._use_debug_print:
                 logger.debug("_callback_add_node details:")
@@ -677,7 +763,9 @@ class DpgNodeEditor(object):
             node_id, node_name = node_id_name.split(":")
             node = self._node_instances_list[node_id_name]
 
-            setting = node.get_setting_dict(node_id)
+            setting = self._logical_setting(
+                node_id_name, node.get_setting_dict(node_id)
+            )
 
             setting_dict[node_id_name] = {
                 "id": str(node_id),
@@ -800,6 +888,7 @@ class DpgNodeEditor(object):
                     # (selectable, deletable) rather than becoming an orphan.
 
                 self._node_list.append(node.tag_node_name)
+                self._zoom.adopt(node.tag_node_name)
 
             # Advance _node_id past all newly imported nodes (exclusive, so +1)
             self._node_id += max_file_id + 1
@@ -1130,7 +1219,7 @@ class DpgNodeEditor(object):
 
             # Snapshot for undo: save settings and involved links before deletion
             try:
-                snapshot_settings = node_instance.get_setting_dict(node_id) if node_instance is not None else {}
+                snapshot_settings = self._logical_setting(node_id_name, node_instance.get_setting_dict(node_id)) if node_instance is not None else {}
                 snapshot_links = attached_links
                 self._undo_stack.append({
                     'node_id_name': node_id_name,
@@ -1259,7 +1348,7 @@ class DpgNodeEditor(object):
             node_id = int(node_id_str)
             node_instance = self._node_instances_list.get(node_id_name)
             try:
-                settings = node_instance.get_setting_dict(node_id_str) if node_instance is not None else {}
+                settings = self._logical_setting(node_id_name, node_instance.get_setting_dict(node_id_str)) if node_instance is not None else {}
             except Exception as exc:
                 logger.warning(
                     "_delete_all_nodes_with_undo: get_setting_dict failed for %s: %s",
@@ -1367,6 +1456,7 @@ class DpgNodeEditor(object):
                     self._node_instances_list[node.tag_node_name] = node
                     node.set_setting_dict(node_id, settings)
                     self._node_list.append(node_id_name)
+                    self._zoom.adopt(node_id_name)
                     if node_id > self._node_id:
                         self._node_id = node_id
                 except Exception as exc:
@@ -1422,6 +1512,7 @@ class DpgNodeEditor(object):
             self._node_instances_list[node.tag_node_name] = node
             node.set_setting_dict(node_id, settings)
             self._node_list.append(node_id_name)
+            self._zoom.adopt(node_id_name)
             # Ensure _node_id stays ahead of restored node IDs to avoid future conflicts
             if node_id > self._node_id:
                 self._node_id = node_id
@@ -1470,7 +1561,9 @@ class DpgNodeEditor(object):
             if node_instance is None:
                 continue
             try:
-                settings = node_instance.get_setting_dict(node_id)
+                settings = self._logical_setting(
+                    node_id_name, node_instance.get_setting_dict(node_id)
+                )
                 entries.append({
                     'node_name': node_name,
                     'node_id': node_id,
@@ -1541,6 +1634,7 @@ class DpgNodeEditor(object):
                         settings = remapped_settings
                     node.set_setting_dict(new_node_id, settings)
                     self._node_list.append(node.tag_node_name)
+                    self._zoom.adopt(node.tag_node_name)
                     logger.info(f"Pasted new node {node.tag_node_name} from clipboard.")
             except Exception as exc:
                 logger.error(f"Paste failed for {node_name}: {exc}")
