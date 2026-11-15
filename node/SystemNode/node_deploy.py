@@ -166,7 +166,7 @@ def _build_schema_dict(node_editor):
         if node_instance is None:
             continue
 
-        setting = node_instance.get_setting_dict(node_id)
+        setting = node_editor.get_node_setting_dict(node_id_name)
         setting_dict[node_id_name] = {
             "id": str(node_id),
             "name": str(node_name),
