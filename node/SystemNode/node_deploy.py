@@ -173,7 +173,36 @@ def _build_schema_dict(node_editor):
             "setting": setting,
         }
 
+    hints = _collect_deepstream_hints(node_editor)
+    if hints:
+        setting_dict["deepstream_hints"] = hints
+
     return setting_dict
+
+
+def _collect_deepstream_hints(node_editor):
+    """
+    Runtime values the DeepStream engine needs but node settings do not hold:
+    the file opened in a Video node and the device of a Webcam node.
+    """
+    hints = {}
+    for node_id_name in node_editor._node_list:
+        node_id, node_name = node_id_name.split(":")
+        node_instance = node_editor._node_instances_list.get(node_id_name)
+        if node_instance is None:
+            continue
+
+        if node_name == "Video":
+            movie_path = getattr(node_instance, "_movie_filepath", {}).get(node_id)
+            if movie_path:
+                hints[node_id_name] = {"uri": str(movie_path)}
+        elif node_name == "Webcam":
+            type_int = getattr(node_instance, "TYPE_INT", "Int")
+            device_no = dpg_get_value(f"{node_id_name}:{type_int}:Input01Value")
+            if device_no not in (None, ""):
+                hints[node_id_name] = {"device": str(device_no)}
+
+    return hints
 
 
 def _callback_convert(sender, data, user_data):
@@ -229,7 +258,11 @@ def _callback_convert(sender, data, user_data):
                 f"OK: {result.nodes_mapped} nodes, "
                 f"{len(result.all_files)} files"
             )
+            if result.warnings:
+                status += f", {len(result.warnings)} warnings (see README.md)"
             dpg_set_value(tag + ":Status", status)
+            for warning in result.warnings:
+                print(f"[Deploy] {warning}")
 
         except Exception as e:
             dpg_set_value(tag + ":Status", f"ERR: {e}")
@@ -254,31 +287,29 @@ def _callback_deploy(sender, data, user_data):
             dpg_set_value(tag + ":Status", "Deploying...")
 
             project_path = Path(project_dir)
+            if not (project_path / "Makefile").exists():
+                dpg_set_value(tag + ":Status", "ERR: No Makefile")
+                return
 
-            # Try docker compose first, fallback to run.sh
-            makefile = project_path / "Makefile"
-            run_script = project_path / "run.sh"
-
-            if makefile.exists():
+            # `make run` builds the image and starts the container detached;
+            # its output is kept so a failure can be diagnosed.
+            log_path = project_path / "deploy.log"
+            with open(log_path, "w", encoding="utf-8") as log:
                 proc = subprocess.Popen(
                     ["make", "run"],
                     cwd=str(project_path),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
                 )
                 node._deploy_process = proc
-                dpg_set_value(tag + ":Status", "Deployed (make run)")
-            elif run_script.exists():
-                proc = subprocess.Popen(
-                    ["bash", str(run_script)],
-                    cwd=str(project_path),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                node._deploy_process = proc
-                dpg_set_value(tag + ":Status", "Deployed (run.sh)")
+                returncode = proc.wait()
+
+            if returncode == 0:
+                dpg_set_value(tag + ":Status", "Deployed (make logs to follow)")
             else:
-                dpg_set_value(tag + ":Status", "ERR: No Makefile/run.sh")
+                dpg_set_value(
+                    tag + ":Status", f"ERR: deploy failed, see {log_path}"
+                )
 
         except FileNotFoundError as e:
             dpg_set_value(tag + ":Status", f"ERR: {e}")

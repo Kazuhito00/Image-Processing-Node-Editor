@@ -11,6 +11,13 @@ Parses the export format produced by CvStudio's _callback_file_export:
         "setting": { ... }
     }
 }
+
+An optional top-level "deepstream_hints" object carries runtime information
+that CvStudio does not persist in node settings (video file path, webcam
+device):
+{
+    "deepstream_hints": {"<id>:<NodeTag>": {"uri": "/data/video.mp4"}}
+}
 """
 
 from __future__ import annotations
@@ -20,6 +27,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+HINTS_KEY = "deepstream_hints"
+
 
 @dataclass
 class NodeInfo:
@@ -28,6 +37,26 @@ class NodeInfo:
     node_id: int
     node_tag: str
     settings: dict[str, Any] = field(default_factory=dict)
+    hints: dict[str, Any] = field(default_factory=dict)
+
+    def setting(self, key_suffix: str, default: Any = None) -> Any:
+        """Return the first setting whose key ends with *key_suffix*."""
+        for key, value in self.settings.items():
+            if key.endswith(key_suffix):
+                return value
+        return default
+
+    def text_setting(self, key_suffix: str, default: str = "") -> str:
+        value = self.setting(key_suffix)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return default
+
+    def float_setting(self, key_suffix: str, default: float) -> float:
+        try:
+            return float(self.setting(key_suffix))
+        except (TypeError, ValueError):
+            return default
 
 
 @dataclass
@@ -61,7 +90,6 @@ class CvStudioProject:
     nodes: dict[int, NodeInfo] = field(default_factory=dict)
     links: list[LinkInfo] = field(default_factory=list)
 
-    # Convenience accessors
     def nodes_by_tag(self, tag: str) -> list[NodeInfo]:
         return [n for n in self.nodes.values() if n.node_tag == tag]
 
@@ -84,33 +112,38 @@ class CvStudioProject:
 
 def parse(path: str | Path) -> CvStudioProject:
     """Parse a CvStudio JSON save file and return a CvStudioProject."""
-    path = Path(path)
-    with open(path, "r", encoding="utf-8") as fp:
-        data = json.load(fp)
+    with open(Path(path), "r", encoding="utf-8") as fp:
+        return parse_dict(json.load(fp))
 
-    project = CvStudioProject()
 
-    # Parse nodes
-    for node_id_name in data.get("node_list", []):
-        parts = node_id_name.split(":")
-        node_id = int(parts[0])
-        node_tag = parts[1]
-
-        node_data = data.get(node_id_name, {})
-        settings = node_data.get("setting", {})
-
-        project.nodes[node_id] = NodeInfo(
-            node_id=node_id,
-            node_tag=node_tag,
-            settings=settings,
+def parse_dict(data: dict) -> CvStudioProject:
+    """Build a CvStudioProject from an already-loaded export dict."""
+    if not isinstance(data, dict) or not isinstance(data.get("node_list"), list):
+        raise ValueError(
+            "Not a CvStudio export: missing 'node_list'. "
+            "Use File > Export in CvStudio to produce the JSON."
         )
 
-    # Parse links
-    for link_pair in data.get("link_list", []):
+    project = CvStudioProject()
+    hints = data.get(HINTS_KEY) or {}
+
+    for node_id_name in data["node_list"]:
+        node_id_str, _, node_tag = str(node_id_name).partition(":")
+        if not node_id_str.isdigit() or not node_tag:
+            raise ValueError(f"Invalid node identifier in node_list: {node_id_name!r}")
+
+        node_data = data.get(node_id_name) or {}
+        project.nodes[int(node_id_str)] = NodeInfo(
+            node_id=int(node_id_str),
+            node_tag=node_tag,
+            settings=node_data.get("setting") or {},
+            hints=dict(hints.get(node_id_name) or {}),
+        )
+
+    for link_pair in data.get("link_list") or []:
         if len(link_pair) >= 2:
-            project.links.append(LinkInfo(
-                source_port=link_pair[0],
-                target_port=link_pair[1],
-            ))
+            project.links.append(
+                LinkInfo(source_port=link_pair[0], target_port=link_pair[1])
+            )
 
     return project

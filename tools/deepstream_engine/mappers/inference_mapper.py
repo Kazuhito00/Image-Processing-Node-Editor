@@ -1,72 +1,93 @@
 """
 Inference element mapper.
 
-Maps CvStudio DL nodes to DeepStream nvinfer / nvinferserver configurations:
-  - ObjectDetection → Primary GIE (PGIE)
-  - Classification → Secondary GIE (SGIE)
-  - PoseEstimation → Secondary GIE (SGIE) with custom post-processing
-  - FaceDetection → Primary/Secondary GIE
-  - SemanticSegmentation → Primary GIE with segmentation output
-  - AudioClassification → Separate audio pipeline branch (metadata only)
+Maps CvStudio DL nodes to nvinfer configurations:
+  - ObjectDetection (YOLO11 / YOLOv8 / YOLOX / FreeYOLO tensors) → primary GIE,
+    decoded by the bbox parser library generated with the project.
+  - Classification → secondary GIE on detected objects (or primary GIE on the
+    full frame when the graph has no detector).
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
-from typing import Any
 
-from tools.deepstream_engine.parser import NodeInfo
 from tools.deepstream_engine.hardware_profile import HardwareProfile, RTX_5070_PROFILE
+from tools.deepstream_engine.models import (
+    SUPPORTED_DETECTOR_FORMATS,
+    ModelSpec,
+    resolve_classifier,
+    resolve_detector,
+)
+from tools.deepstream_engine.parser import NodeInfo
 
+INFERENCE_NODE_TAGS = {"ObjectDetection", "Classification"}
 
-# Map CvStudio model output_format to DeepStream network-type + parse config
-_OUTPUT_FORMAT_MAP = {
-    "yolox": {
-        "network_type": "0",  # Detector
-        "parse_func": "NvDsInferParseYoloX",
-        "custom_lib": "libnvdsinfer_custom_impl_Yolo.so",
-    },
-    "yolo11": {
-        "network_type": "0",  # Detector
-        "parse_func": "NvDsInferParseYoloV8",
-        "custom_lib": "libnvdsinfer_custom_impl_Yolo.so",
-    },
-}
-
-INFERENCE_NODE_TAGS = {
-    "ObjectDetection",
-    "Classification",
+# DL nodes whose post-processing has no DeepStream counterpart in this engine.
+UNSUPPORTED_INFERENCE_TAGS = {
     "PoseEstimation",
     "FaceDetection",
     "SemanticSegmentation",
+    "MonocularDepthEstimation",
+    "LLIE",
+    "OnlineTraining",
+    "AudioClassification",
 }
+
+PARSER_LIB_DIR = "nvdsinfer_custom_impl_cvstudio"
+PARSER_LIB = f"{PARSER_LIB_DIR}/libnvdsinfer_custom_impl_cvstudio.so"
+
+# output_format -> nvinfer pre-processing + parser, mirroring CvStudio's own
+# pre-processing so the DeepStream results match what the editor shows.
+_DETECTOR_FORMATS = {
+    # Ultralytics: RGB, [0, 1], stretch resize.
+    "yolo11": {
+        "net-scale-factor": "0.0039215697906911373",
+        "model-color-format": "0",
+        "maintain-aspect-ratio": "0",
+        "parse-bbox-func-name": "NvDsInferParseCvStudioYolo",
+    },
+    # YOLOX / FreeYOLO: BGR, [0, 255], top-left letterbox.
+    "yolox": {
+        "net-scale-factor": "1.0",
+        "model-color-format": "1",
+        "maintain-aspect-ratio": "1",
+        "symmetric-padding": "0",
+        "parse-bbox-func-name": "NvDsInferParseCvStudioYoloX",
+    },
+}
+
+_NMS_IOU_THRESHOLD = 0.45
 
 
 @dataclass
 class InferenceConfig:
-    """DeepStream nvinfer configuration for a single model."""
+    """nvinfer configuration for a single model."""
 
     gie_id: int
     gie_type: str  # "primary" or "secondary"
     node_tag: str
     model_name: str = ""
-    onnx_path: str = ""
+    source_model_path: str = ""  # ONNX found on this machine, "" when missing
+    onnx_path: str = ""  # relative to the generated project
     trt_engine_path: str = ""
-    input_width: int = 640
-    input_height: int = 640
-    num_classes: int = 80
-    output_format: str = "yolo11"
+    labels_file: str = ""
+    input_width: int = 0
+    input_height: int = 0
+    num_classes: int = 0
+    output_format: str = ""
     score_threshold: float = 0.4
-    nms_threshold: float = 0.45
-    class_names: dict[int, str] = field(default_factory=dict)
-    # DeepStream specifics
-    network_type: int = 0  # 0=Detector, 1=Classifier, 2=Segmentation, 100=Other
-    cluster_mode: int = 2  # NMS
+    nms_threshold: float = _NMS_IOU_THRESHOLD
+    class_names: list[str] = field(default_factory=list)
+    network_type: int = 0  # 0=Detector, 1=Classifier
     batch_size: int = 1
     interval: int = 0
-    operate_on_gie_id: int = -1  # For SGIE: which PGIE to operate on
-    config_entries: dict[str, Any] = field(default_factory=dict)
+    operate_on_gie_id: int = -1
+    config_entries: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    @property
+    def uses_custom_parser(self) -> bool:
+        return self.network_type == 0
 
 
 def map_inference(
@@ -74,292 +95,220 @@ def map_inference(
     gie_index: int = 0,
     is_primary: bool = True,
     profile: HardwareProfile = RTX_5070_PROFILE,
+    num_sources: int = 1,
+    warnings: list[str] | None = None,
 ) -> InferenceConfig | None:
-    """Convert a CvStudio DL node into DeepStream inference configuration."""
-    tag = node.node_tag
-    settings = node.settings
-
-    if tag == "ObjectDetection":
-        return _map_object_detection(node, gie_index, is_primary, profile)
-    elif tag == "Classification":
-        return _map_classification(node, gie_index, profile)
-    elif tag == "PoseEstimation":
-        return _map_pose_estimation(node, gie_index, profile)
-    elif tag == "FaceDetection":
-        return _map_face_detection(node, gie_index, is_primary, profile)
-    elif tag == "SemanticSegmentation":
-        return _map_segmentation(node, gie_index, is_primary, profile)
-
+    """Convert a CvStudio DL node into an nvinfer configuration."""
+    warnings = warnings if warnings is not None else []
+    if node.node_tag == "ObjectDetection":
+        return _map_object_detection(node, gie_index, profile, num_sources, warnings)
+    if node.node_tag == "Classification":
+        return _map_classification(node, gie_index, is_primary, profile, num_sources, warnings)
     return None
 
 
 def _map_object_detection(
     node: NodeInfo,
     gie_index: int,
-    is_primary: bool,
     profile: HardwareProfile,
-) -> InferenceConfig:
-    """Map ObjectDetection node to PGIE config."""
-    settings = node.settings
+    num_sources: int,
+    warnings: list[str],
+) -> InferenceConfig | None:
+    label = f"{node.node_id}:{node.node_tag}"
+    model_name = node.text_setting("Input02Value", "YOLOX-Nano(416x416)")
+    spec = resolve_detector(model_name)
 
-    # Extract model info from settings
-    model_name = _extract_combo_value(settings, "Input02Value", "YOLOX-Nano(416x416)")
-    score_th = _extract_float_value(settings, "Input03Value", 0.4)
+    if spec.output_format not in SUPPORTED_DETECTOR_FORMATS:
+        warnings.append(
+            f"{label}: model '{model_name}' has output format '{spec.output_format}', "
+            f"which has no DeepStream bbox parser (supported: "
+            f"{', '.join(sorted(SUPPORTED_DETECTOR_FORMATS))}); detector skipped."
+        )
+        return None
+    if spec.dynamic_size:
+        warnings.append(
+            f"{label}: model '{model_name}' has a dynamic input size; "
+            f"'infer-dims' was set to 3;640;640, adjust it to the training size."
+        )
+        spec.input_width = spec.input_height = 640
 
-    # Determine model properties from name heuristics
-    input_w, input_h = 640, 640
-    output_format = "yolo11"
-    num_classes = 80
+    config = _base_config(spec, node, gie_index, "primary", profile, warnings, label)
+    config.network_type = 0
+    config.score_threshold = node.float_setting("Input03Value", 0.4)
+    config.batch_size = _batch_size(spec, num_sources, profile, warnings, label)
+    config.interval = max(profile.infer_interval - 1, 0)
 
-    if "416" in model_name:
-        input_w, input_h = 416, 416
-    elif "608" in model_name:
-        input_w, input_h = 608, 608
-    elif "192" in model_name:
-        input_w, input_h = 192, 192
+    prop = _common_properties(config, spec, profile)
+    prop.update(_DETECTOR_FORMATS[spec.output_format])
+    prop.update({
+        "num-detected-classes": str(config.num_classes or 1),
+        "interval": str(config.interval),
+        "process-mode": "1",
+        "network-type": "0",
+        "cluster-mode": "2",
+        "custom-lib-path": PARSER_LIB,
+    })
+    rejected = _rejected_class_ids(node.setting("RejectedClassesValue", ""))
+    if rejected:
+        prop["filter-out-class-ids"] = ";".join(str(i) for i in rejected)
 
-    if "YOLOX" in model_name or "FreeYOLO" in model_name:
-        output_format = "yolox"
-    elif "YOLO11" in model_name or "YOLOTENNIS" in model_name:
-        output_format = "yolo11"
-
-    if "CrowdHuman" in model_name or "Person" in model_name:
-        num_classes = 1
-    elif "TENNIS" in model_name.upper():
-        num_classes = 3
-
-    format_info = _OUTPUT_FORMAT_MAP.get(output_format, _OUTPUT_FORMAT_MAP["yolo11"])
-
-    config = InferenceConfig(
-        gie_id=gie_index + 1,
-        gie_type="primary" if is_primary else "secondary",
-        node_tag=node.node_tag,
-        model_name=model_name,
-        onnx_path=f"models/{_sanitize_filename(model_name)}.onnx",
-        trt_engine_path=f"models/{_sanitize_filename(model_name)}.engine",
-        input_width=input_w,
-        input_height=input_h,
-        num_classes=num_classes,
-        output_format=output_format,
-        score_threshold=score_th,
-        nms_threshold=0.45,
-        network_type=0,
-        cluster_mode=2,
-        batch_size=min(profile.max_batch_size, 4),
-        interval=profile.infer_interval - 1,
-    )
-
-    config.config_entries = _build_nvinfer_config(config, profile, format_info)
+    config.config_entries = {
+        "[property]": prop,
+        "[class-attrs-all]": {
+            "pre-cluster-threshold": f"{config.score_threshold:g}",
+            "nms-iou-threshold": f"{config.nms_threshold:g}",
+            "topk": "300",
+        },
+    }
     return config
 
 
 def _map_classification(
     node: NodeInfo,
     gie_index: int,
-    profile: HardwareProfile,
-) -> InferenceConfig:
-    """Map Classification node to SGIE config."""
-    settings = node.settings
-    model_name = _extract_combo_value(settings, "Input02Value", "classifier")
-
-    config = InferenceConfig(
-        gie_id=gie_index + 1,
-        gie_type="secondary",
-        node_tag="Classification",
-        model_name=model_name,
-        onnx_path=f"models/{_sanitize_filename(model_name)}.onnx",
-        trt_engine_path=f"models/{_sanitize_filename(model_name)}.engine",
-        input_width=224,
-        input_height=224,
-        num_classes=1000,
-        network_type=1,  # Classifier
-        cluster_mode=2,
-        batch_size=min(profile.max_batch_size, 8),
-        interval=0,
-        operate_on_gie_id=1,
-    )
-
-    config.config_entries = _build_sgie_config(config, profile)
-    return config
-
-
-def _map_pose_estimation(
-    node: NodeInfo,
-    gie_index: int,
-    profile: HardwareProfile,
-) -> InferenceConfig:
-    """Map PoseEstimation node to SGIE config."""
-    config = InferenceConfig(
-        gie_id=gie_index + 1,
-        gie_type="secondary",
-        node_tag="PoseEstimation",
-        model_name="pose_estimation",
-        onnx_path="models/pose_estimation.onnx",
-        trt_engine_path="models/pose_estimation.engine",
-        input_width=256,
-        input_height=192,
-        num_classes=17,  # COCO keypoints
-        network_type=100,  # Other (custom post-process)
-        cluster_mode=2,
-        batch_size=min(profile.max_batch_size, 8),
-        interval=0,
-        operate_on_gie_id=1,
-    )
-
-    config.config_entries = _build_sgie_config(config, profile)
-    return config
-
-
-def _map_face_detection(
-    node: NodeInfo,
-    gie_index: int,
     is_primary: bool,
     profile: HardwareProfile,
+    num_sources: int,
+    warnings: list[str],
 ) -> InferenceConfig:
-    """Map FaceDetection node to GIE config."""
-    config = InferenceConfig(
-        gie_id=gie_index + 1,
-        gie_type="primary" if is_primary else "secondary",
-        node_tag="FaceDetection",
-        model_name="face_detection",
-        onnx_path="models/face_detection.onnx",
-        trt_engine_path="models/face_detection.engine",
-        input_width=320,
-        input_height=240,
-        num_classes=1,
-        network_type=0,
-        cluster_mode=2,
-        batch_size=min(profile.max_batch_size, 4),
-        interval=0,
-    )
+    label = f"{node.node_id}:{node.node_tag}"
+    model_name = node.text_setting("Input02Value", "MobileNetV3 Small")
+    spec = resolve_classifier(model_name)
+    if spec.dynamic_size or not spec.input_width:
+        spec.input_width = spec.input_height = 224
 
-    format_info = _OUTPUT_FORMAT_MAP["yolox"]
-    config.config_entries = _build_nvinfer_config(config, profile, format_info)
-    return config
-
-
-def _map_segmentation(
-    node: NodeInfo,
-    gie_index: int,
-    is_primary: bool,
-    profile: HardwareProfile,
-) -> InferenceConfig:
-    """Map SemanticSegmentation node to GIE config."""
-    config = InferenceConfig(
-        gie_id=gie_index + 1,
-        gie_type="primary" if is_primary else "secondary",
-        node_tag="SemanticSegmentation",
-        model_name="semantic_segmentation",
-        onnx_path="models/semantic_segmentation.onnx",
-        trt_engine_path="models/semantic_segmentation.engine",
-        input_width=512,
-        input_height=512,
-        num_classes=21,
-        network_type=2,  # Segmentation
-        cluster_mode=2,
-        batch_size=min(profile.max_batch_size, 2),
-        interval=0,
-    )
-
-    format_info = {"network_type": "2", "parse_func": "", "custom_lib": ""}
-    config.config_entries = _build_nvinfer_config(config, profile, format_info)
-    config.config_entries["[property]"]["network-type"] = "2"
-    config.config_entries["[property]"]["segmentation-threshold"] = "0.5"
-    config.config_entries["[property]"]["output-blob-names"] = "output"
-    return config
-
-
-def _build_nvinfer_config(
-    config: InferenceConfig,
-    profile: HardwareProfile,
-    format_info: dict,
-) -> dict:
-    """Build nvinfer configuration sections."""
-    precision = "1" if profile.fp16_enabled else "0"  # 0=FP32, 1=FP16, 2=INT8
-    if profile.int8_enabled:
-        precision = "2"
-
-    entries = {
-        "[property]": {
-            "gpu-id": str(profile.gpu_id),
-            "net-scale-factor": "1.0",
-            "onnx-file": config.onnx_path,
-            "model-engine-file": config.trt_engine_path,
-            "batch-size": str(config.batch_size),
-            "network-mode": precision,
-            "num-detected-classes": str(config.num_classes),
-            "interval": str(config.interval),
-            "gie-unique-id": str(config.gie_id),
-            "network-type": format_info["network_type"],
-            "cluster-mode": str(config.cluster_mode),
-            "maintain-aspect-ratio": "1",
-            "workspace-size": str(profile.tensorrt_workspace_mb),
-            "infer-dims": f"3;{config.input_height};{config.input_width}",
-            "parse-bbox-func-name": format_info["parse_func"],
-            "custom-lib-path": format_info["custom_lib"],
-        },
-        "[class-attrs-all]": {
-            "pre-cluster-threshold": str(config.score_threshold),
-            "nms-iou-threshold": str(config.nms_threshold),
-            "topk": "200",
-        },
-    }
-
-    if config.gie_type == "secondary":
-        entries["[property]"]["process-mode"] = "2"  # Secondary
-        entries["[property]"]["operate-on-gie-id"] = str(config.operate_on_gie_id)
+    gie_type = "primary" if is_primary else "secondary"
+    config = _base_config(spec, node, gie_index, gie_type, profile, warnings, label)
+    config.network_type = 1
+    config.score_threshold = node.float_setting("ScoreThresholdValue", 0.5)
+    config.operate_on_gie_id = -1 if is_primary else 1
+    if is_primary:
+        config.batch_size = _batch_size(spec, num_sources, profile, warnings, label)
     else:
-        entries["[property]"]["process-mode"] = "1"  # Primary
+        # Objects of all streams are batched together.
+        config.batch_size = min(profile.max_batch_size, 16) if spec.dynamic_batch else 1
 
-    return entries
+    prop = _common_properties(config, spec, profile)
+    prop.update({
+        "net-scale-factor": "0.0039215697906911373",
+        "model-color-format": "0",
+        "process-mode": "1" if is_primary else "2",
+        "network-type": "1",
+        "classifier-threshold": f"{config.score_threshold:g}",
+    })
+    if not is_primary:
+        prop["operate-on-gie-id"] = str(config.operate_on_gie_id)
+    if spec.channels_last:
+        prop["network-input-order"] = "1"
+
+    warnings.append(
+        f"{label}: classifier '{model_name}' is configured with RGB input scaled to "
+        f"[0, 1]; adjust net-scale-factor/offsets in the generated config if the model "
+        f"was trained with another normalisation."
+    )
+    config.config_entries = {"[property]": prop}
+    return config
 
 
-def _build_sgie_config(config: InferenceConfig, profile: HardwareProfile) -> dict:
-    """Build SGIE-specific config."""
-    precision = "1" if profile.fp16_enabled else "0"
+def _base_config(
+    spec: ModelSpec,
+    node: NodeInfo,
+    gie_index: int,
+    gie_type: str,
+    profile: HardwareProfile,
+    warnings: list[str],
+    label: str,
+) -> InferenceConfig:
+    onnx_path = f"models/{spec.filename}"
+    if spec.path is None:
+        warnings.append(
+            f"{label}: ONNX file for model '{spec.name}' was not found on this machine; "
+            f"copy it to {onnx_path} before running."
+        )
     if profile.int8_enabled:
-        precision = "2"
+        warnings.append(
+            f"{label}: INT8 needs a calibration table at models/{spec.filename}.calib; "
+            f"without it TensorRT falls back to FP32."
+        )
+    return InferenceConfig(
+        gie_id=gie_index + 1,
+        gie_type=gie_type,
+        node_tag=node.node_tag,
+        model_name=spec.name,
+        source_model_path=str(spec.path) if spec.path else "",
+        onnx_path=onnx_path,
+        input_width=spec.input_width,
+        input_height=spec.input_height,
+        num_classes=spec.num_classes,
+        output_format=spec.output_format,
+        class_names=list(spec.class_names),
+    )
 
-    return {
-        "[property]": {
-            "gpu-id": str(profile.gpu_id),
-            "net-scale-factor": "1.0",
-            "onnx-file": config.onnx_path,
-            "model-engine-file": config.trt_engine_path,
-            "batch-size": str(config.batch_size),
-            "network-mode": precision,
-            "num-detected-classes": str(config.num_classes),
-            "interval": str(config.interval),
-            "gie-unique-id": str(config.gie_id),
-            "network-type": str(config.network_type),
-            "process-mode": "2",
-            "operate-on-gie-id": str(config.operate_on_gie_id),
-            "workspace-size": str(profile.tensorrt_workspace_mb),
-            "infer-dims": f"3;{config.input_height};{config.input_width}",
-        },
+
+def _common_properties(
+    config: InferenceConfig,
+    spec: ModelSpec,
+    profile: HardwareProfile,
+) -> dict[str, str]:
+    # nvinfer network-mode: 0=FP32, 1=INT8, 2=FP16
+    if profile.int8_enabled:
+        mode, precision = "1", "int8"
+    elif profile.fp16_enabled:
+        mode, precision = "2", "fp16"
+    else:
+        mode, precision = "0", "fp32"
+
+    # Same name nvinfer gives the engine it builds, so the first-run build is
+    # reused on every later start.
+    config.trt_engine_path = (
+        f"{config.onnx_path}_b{config.batch_size}_gpu{profile.gpu_id}_{precision}.engine"
+    )
+    prop = {
+        "gpu-id": str(profile.gpu_id),
+        "onnx-file": config.onnx_path,
+        "model-engine-file": config.trt_engine_path,
+        "batch-size": str(config.batch_size),
+        "network-mode": mode,
+        "gie-unique-id": str(config.gie_id),
+        "workspace-size": str(profile.tensorrt_workspace_mb),
     }
+    if profile.int8_enabled:
+        prop["int8-calib-file"] = f"{config.onnx_path}.calib"
+    if config.class_names:
+        config.labels_file = f"labels_gie{config.gie_id}.txt"
+        prop["labelfile-path"] = config.labels_file
+    if (spec.dynamic_size or not spec.inspected) and config.input_width:
+        if spec.channels_last:
+            prop["infer-dims"] = f"{config.input_height};{config.input_width};3"
+        else:
+            prop["infer-dims"] = f"3;{config.input_height};{config.input_width}"
+    return prop
 
 
-def _extract_combo_value(settings: dict, key_suffix: str, default: str = "") -> str:
-    """Extract combo/text value from settings."""
-    for key, value in settings.items():
-        if key.endswith(key_suffix):
-            if isinstance(value, str) and value:
-                return value
-    return default
+def _batch_size(
+    spec: ModelSpec,
+    num_sources: int,
+    profile: HardwareProfile,
+    warnings: list[str],
+    label: str,
+) -> int:
+    """Full-frame batch size: one frame per stream when the model allows it."""
+    if spec.dynamic_batch:
+        return max(1, min(num_sources, profile.max_batch_size))
+    if num_sources > 1:
+        warnings.append(
+            f"{label}: model '{spec.name}' is not known to accept a dynamic batch, so "
+            f"the {num_sources} streams are inferred one frame at a time; re-export the "
+            f"ONNX with a dynamic batch axis for batched inference."
+        )
+    return 1
 
 
-def _extract_float_value(settings: dict, key_suffix: str, default: float = 0.0) -> float:
-    """Extract a float value from settings."""
-    for key, value in settings.items():
-        if key.endswith(key_suffix):
-            try:
-                return float(value)
-            except (ValueError, TypeError):
-                pass
-    return default
-
-
-def _sanitize_filename(name: str) -> str:
-    """Convert a model name to a safe filename."""
-    return name.lower().replace(" ", "_").replace("(", "").replace(")", "").replace("/", "_")
+def _rejected_class_ids(value) -> list[int]:
+    """Parse CvStudio's class rejection filter ("0: person, 2: car" or "0,2")."""
+    ids = set()
+    for part in str(value or "").split(","):
+        head = part.split(":")[0].strip()
+        if head.isdigit():
+            ids.add(int(head))
+    return sorted(ids)

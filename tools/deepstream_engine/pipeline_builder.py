@@ -1,40 +1,43 @@
 """
 DeepStream pipeline builder.
 
-Assembles a complete DeepStream pipeline configuration from the mapped elements.
-Handles the topology: sources → streammux → PGIE → tracker → SGIE(s) → OSD → sinks.
+Assembles a complete deepstream-app pipeline from the mapped elements:
+  sources → streammux → PGIE → tracker → SGIE(s) → tiler → OSD → sinks
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
-from tools.deepstream_engine.parser import CvStudioProject, NodeInfo
 from tools.deepstream_engine.hardware_profile import HardwareProfile, RTX_5070_PROFILE
-from tools.deepstream_engine.mappers.source_mapper import (
-    DeepStreamSource,
-    SOURCE_NODE_TAGS,
-    map_source,
-)
 from tools.deepstream_engine.mappers.inference_mapper import (
-    InferenceConfig,
     INFERENCE_NODE_TAGS,
+    UNSUPPORTED_INFERENCE_TAGS,
+    InferenceConfig,
     map_inference,
 )
+from tools.deepstream_engine.mappers.sink_mapper import (
+    SINK_NODE_TAGS,
+    SinkConfig,
+    map_display_sink,
+    map_rtsp_sink,
+    map_sink,
+)
+from tools.deepstream_engine.mappers.source_mapper import (
+    SOURCE_NODE_TAGS,
+    UNSUPPORTED_SOURCE_TAGS,
+    DeepStreamSource,
+    map_source,
+)
 from tools.deepstream_engine.mappers.tracker_mapper import (
-    TrackerConfig,
     TRACKER_NODE_TAGS,
+    TrackerConfig,
     map_tracker,
 )
-from tools.deepstream_engine.mappers.sink_mapper import (
-    SinkConfig,
-    SINK_NODE_TAGS,
-    DISPLAY_NODE_TAGS,
-    map_sink,
-    map_display_sink,
-    map_fake_sink,
-)
+from tools.deepstream_engine.parser import CvStudioProject
+
+# Editor-only nodes: nothing to convert, nothing to report.
+_SILENT_NODE_TAGS = {"Deploy", "Settings", "SystemSizing", "SystemResource", "OnvifScan"}
 
 
 @dataclass
@@ -48,104 +51,143 @@ class DeepStreamPipeline:
     tracker: TrackerConfig | None = None
     sinks: list[SinkConfig] = field(default_factory=list)
     osd_enabled: bool = True
+    file_loop: bool = False
     streammux_config: dict[str, str] = field(default_factory=dict)
     tiler_config: dict[str, str] = field(default_factory=dict)
     profile: HardwareProfile = field(default_factory=lambda: RTX_5070_PROFILE)
-    # Metadata
-    source_node_tags_found: list[str] = field(default_factory=list)
-    inference_node_tags_found: list[str] = field(default_factory=list)
+    # Conversion report
+    warnings: list[str] = field(default_factory=list)
+    ignored_nodes: list[str] = field(default_factory=list)
+
+    @property
+    def gies(self) -> list[InferenceConfig]:
+        primary = [self.primary_gie] if self.primary_gie else []
+        return primary + self.secondary_gies
+
+    @property
+    def uses_custom_parser(self) -> bool:
+        return any(gie.uses_custom_parser for gie in self.gies)
+
+    @property
+    def is_live(self) -> bool:
+        return any(source.is_live for source in self.sources)
 
 
 def build_pipeline(
     project: CvStudioProject,
     profile: HardwareProfile = RTX_5070_PROFILE,
     project_name: str = "cvstudio_deepstream",
+    display: bool = False,
 ) -> DeepStreamPipeline:
-    """
-    Analyze a CvStudio project and build the corresponding DeepStream pipeline.
-
-    The pipeline follows standard DeepStream topology:
-      sources → streammux → PGIE → tracker → SGIE(s) → OSD → tiler → sinks
-    """
+    """Analyze a CvStudio project and build the corresponding DeepStream pipeline."""
     pipeline = DeepStreamPipeline(name=project_name, profile=profile)
+    warnings = pipeline.warnings
+    nodes = [project.nodes[node_id] for node_id in sorted(project.nodes)]
 
-    # --- 1. Map sources ---
-    source_idx = 0
-    for node in project.nodes.values():
+    # --- 1. Sources ---
+    for node in nodes:
         if node.node_tag in SOURCE_NODE_TAGS:
-            source = map_source(node, source_idx)
+            source = map_source(node, len(pipeline.sources), profile, warnings)
             if source:
                 pipeline.sources.append(source)
-                pipeline.source_node_tags_found.append(node.node_tag)
-                source_idx += 1
+        elif node.node_tag in UNSUPPORTED_SOURCE_TAGS:
+            warnings.append(
+                f"{node.node_id}:{node.node_tag}: this input has no DeepStream source "
+                f"equivalent; node ignored."
+            )
+    if not pipeline.sources:
+        raise ValueError(
+            "The project has no video source DeepStream can read "
+            f"(supported input nodes: {', '.join(sorted(SOURCE_NODE_TAGS))})."
+        )
+    num_sources = len(pipeline.sources)
+    if num_sources > profile.max_simultaneous_streams:
+        warnings.append(
+            f"{num_sources} sources exceed the {profile.max_simultaneous_streams} "
+            f"simultaneous streams the {profile.name} profile is sized for."
+        )
+    pipeline.file_loop = any(source.loop for source in pipeline.sources)
 
-    # --- 2. Map inference nodes ---
-    gie_idx = 0
-    pgie_assigned = False
-
-    # Walk the graph to determine primary vs secondary inference
-    # First detector found becomes PGIE; classifiers/pose become SGIEs
-    for node in project.nodes.values():
-        if node.node_tag in INFERENCE_NODE_TAGS:
-            is_primary = (
-                not pgie_assigned
-                and node.node_tag in ("ObjectDetection", "FaceDetection", "SemanticSegmentation")
+    # --- 2. Inference: one detector as PGIE, classifiers as SGIEs ---
+    for node in nodes:
+        if node.node_tag in UNSUPPORTED_INFERENCE_TAGS:
+            warnings.append(
+                f"{node.node_id}:{node.node_tag}: the post-processing of this model "
+                f"type is not available in DeepStream; node ignored."
+            )
+    for node in nodes:
+        if node.node_tag != "ObjectDetection":
+            continue
+        if pipeline.primary_gie:
+            warnings.append(
+                f"{node.node_id}:{node.node_tag}: deepstream-app runs a single primary "
+                f"detector; additional detector ignored."
+            )
+            continue
+        pipeline.primary_gie = map_inference(
+            node, 0, True, profile, num_sources, warnings
+        )
+    for node in nodes:
+        if node.node_tag != "Classification":
+            continue
+        gie_index = len(pipeline.gies)
+        if pipeline.primary_gie is None:
+            pipeline.primary_gie = map_inference(
+                node, gie_index, True, profile, num_sources, warnings
+            )
+        elif pipeline.primary_gie.network_type == 0:
+            pipeline.secondary_gies.append(
+                map_inference(node, gie_index, False, profile, num_sources, warnings)
+            )
+        else:
+            warnings.append(
+                f"{node.node_id}:{node.node_tag}: only one full-frame classifier can "
+                f"run without a detector; additional classifier ignored."
             )
 
-            infer_config = map_inference(node, gie_idx, is_primary, profile)
-            if infer_config:
-                if is_primary:
-                    pipeline.primary_gie = infer_config
-                    pgie_assigned = True
-                else:
-                    infer_config.operate_on_gie_id = 1  # Operate on PGIE
-                    pipeline.secondary_gies.append(infer_config)
-                pipeline.inference_node_tags_found.append(node.node_tag)
-                gie_idx += 1
+    # --- 3. Tracker (needs detections to track) ---
+    for node in nodes:
+        if node.node_tag not in TRACKER_NODE_TAGS:
+            continue
+        if pipeline.tracker:
+            warnings.append(
+                f"{node.node_id}:{node.node_tag}: a DeepStream pipeline has a single "
+                f"tracker; additional tracker ignored."
+            )
+        elif pipeline.primary_gie is None or pipeline.primary_gie.network_type != 0:
+            warnings.append(
+                f"{node.node_id}:{node.node_tag}: no object detector in the pipeline; "
+                f"tracker skipped."
+            )
+        else:
+            pipeline.tracker = map_tracker(node, profile, warnings)
 
-    # --- 3. Map tracker ---
-    for node in project.nodes.values():
-        if node.node_tag in TRACKER_NODE_TAGS:
-            pipeline.tracker = map_tracker(node, profile)
-            break  # Only one tracker in DeepStream pipeline
-
-    # --- 4. Map sinks ---
-    sink_idx = 0
-    has_display_node = any(
-        n.node_tag in DISPLAY_NODE_TAGS for n in project.nodes.values()
-    )
-    has_sink_node = any(
-        n.node_tag in SINK_NODE_TAGS for n in project.nodes.values()
-    )
-
-    for node in project.nodes.values():
+    # --- 4. Sinks ---
+    live = pipeline.is_live
+    for node in nodes:
         if node.node_tag in SINK_NODE_TAGS:
-            sink = map_sink(node, sink_idx, profile)
+            sink = map_sink(node, len(pipeline.sinks), profile, live, warnings)
             if sink:
                 pipeline.sinks.append(sink)
-                sink_idx += 1
-
-    # Default sinks if none mapped
     if not pipeline.sinks:
-        if has_display_node:
-            pipeline.sinks.append(map_display_sink(sink_idx, profile))
-        else:
-            pipeline.sinks.append(map_fake_sink(sink_idx))
+        # Keep the annotated video reachable on a headless machine.
+        pipeline.sinks.append(map_rtsp_sink(0, profile, live))
+    if display:
+        pipeline.sinks.append(map_display_sink(len(pipeline.sinks), profile, live))
 
-    # --- 5. Streammux config (optimized for RTX 5070) ---
-    num_sources = max(len(pipeline.sources), 1)
+    # --- 5. Streammux ---
     pipeline.streammux_config = {
+        "gpu-id": str(profile.gpu_id),
+        "live-source": "1" if live else "0",
         "batch-size": str(num_sources),
         "batched-push-timeout": "40000",
         "width": "1920",
         "height": "1080",
         "enable-padding": "0",
-        "gpu-id": str(profile.gpu_id),
         "nvbuf-memory-type": str(profile.nvbuf_memory_type),
-        "live-source": "1" if _has_live_sources(pipeline) else "0",
     }
 
-    # --- 6. Tiler config (for multi-source) ---
+    # --- 6. Tiler (composites all streams into one frame for the sinks) ---
     if num_sources > 1:
         cols = _compute_tiler_cols(num_sources)
         rows = (num_sources + cols - 1) // cols
@@ -159,24 +201,31 @@ def build_pipeline(
         }
 
     # --- 7. OSD ---
-    pipeline.osd_enabled = bool(pipeline.primary_gie or pipeline.secondary_gies)
+    pipeline.osd_enabled = bool(pipeline.gies)
+
+    # --- 8. Everything else has no DeepStream counterpart ---
+    handled = (
+        SOURCE_NODE_TAGS
+        | UNSUPPORTED_SOURCE_TAGS
+        | INFERENCE_NODE_TAGS
+        | UNSUPPORTED_INFERENCE_TAGS
+        | TRACKER_NODE_TAGS
+        | SINK_NODE_TAGS
+        | _SILENT_NODE_TAGS
+    )
+    pipeline.ignored_nodes = [
+        f"{node.node_id}:{node.node_tag}" for node in nodes if node.node_tag not in handled
+    ]
 
     return pipeline
 
 
-def _has_live_sources(pipeline: DeepStreamPipeline) -> bool:
-    """Check if any source is a live stream (RTSP, Webcam, etc.)."""
-    live_types = {"uridecodebin", "v4l2src"}
-    return any(s.source_type in live_types for s in pipeline.sources)
-
-
 def _compute_tiler_cols(num_sources: int) -> int:
-    """Compute optimal number of tiler columns."""
+    """Number of tiler columns for a near-square grid."""
     if num_sources <= 2:
         return num_sources
-    elif num_sources <= 4:
+    if num_sources <= 4:
         return 2
-    elif num_sources <= 9:
+    if num_sources <= 9:
         return 3
-    else:
-        return 4
+    return 4

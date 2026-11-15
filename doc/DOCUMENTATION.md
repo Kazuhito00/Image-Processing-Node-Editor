@@ -1218,7 +1218,34 @@ python tools/set_onnx_audio_metadata.py model.onnx --classes "classe1,classe2" -
 
 ### `tools/deepstream_engine/`
 
-Intégration NVIDIA DeepStream pour le déploiement edge sur Jetson.
+Convertit un export JSON CvStudio (*File > Export*) en projet NVIDIA DeepStream
+prêt à déployer (serveur GPU ou Jetson) : configuration `deepstream-app`,
+configurations `nvinfer`, librairie de parsing des boîtes, Dockerfile,
+`docker-compose.yml`, `Makefile` et `run.sh`.
+
+```bash
+python -m tools.deepstream_engine mon_workflow.json -o mon_projet/
+# Fichier d'un nœud Video / périphérique d'un nœud Webcam (absents de l'export) :
+python -m tools.deepstream_engine mon_workflow.json --source 1=/data/video.mp4
+cd mon_projet && make run
+```
+
+Le nœud **Deploy** fait la même conversion depuis l'éditeur et transmet
+automatiquement le fichier vidéo et la caméra sélectionnés.
+
+| Nœud CvStudio | Élément DeepStream |
+|---------------|--------------------|
+| RTSP, Video, HLS, YouTube, Webcam | groupes `[sourceN]` (décodage matériel) |
+| ObjectDetection (YOLO11/YOLOv8, YOLOX, FreeYOLO) | `nvinfer` primaire (TensorRT) |
+| Classification | `nvinfer` secondaire sur les objets détectés |
+| MultiObjectTracking | `nvtracker` (IOU, NvSORT ou NvDCF) |
+| VideoWriter, VideoRecorder | enregistrement MP4 H.264 |
+| RTMPOutput, Streaming, ou aucune sortie | serveur RTSP `rtsp://<hôte>:8554/ds-test` |
+
+Les nœuds sans équivalent DeepStream (traitement d'image OpenCV, pose,
+segmentation, audio, actions…) sont ignorés et listés dans le résumé de
+conversion et dans le `README.md` du projet généré, avec les points à
+vérifier avant la mise en production.
 
 ### `verify_dependencies.py`
 
