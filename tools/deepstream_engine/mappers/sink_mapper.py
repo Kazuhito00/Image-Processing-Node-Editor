@@ -46,7 +46,7 @@ def map_sink(
     if tag in ("VideoWriter", "VideoRecorder"):
         return _map_file_sink(node, sink_index, profile)
     elif tag == "ImageConcat":
-        return _map_display_sink(node, sink_index, profile)
+        return map_display_sink(sink_index, profile)
     elif tag == "MQTT":
         return _map_mqtt_sink(node, sink_index, profile)
     elif tag == "MongoDB":

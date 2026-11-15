@@ -1138,9 +1138,9 @@ class VideoWriterNode(Node):
                     }
                     logger.info(
                         "VideoWriter[%s] STANDARD recording started "
-                        "format=%s codec=%s quality=%s fps=%s size=%sx%s "
+                        "format=%s codec=%s fps=%s size=%sx%s "
                         "temp=%s final=%s",
-                        tag_node_name, video_format, cv2_codec, quality,
+                        tag_node_name, video_format, cv2_codec,
                         writer_fps, writer_width, writer_height,
                         temp_file_path, file_path,
                     )

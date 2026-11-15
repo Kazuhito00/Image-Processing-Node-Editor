@@ -106,9 +106,18 @@ class EnhancedNode(BaseNode):
         
         try:
             resize_image = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+            if (
+                resize_image.dtype == np.uint8
+                and resize_image.ndim == 3
+                and resize_image.shape[2] == 3
+            ):
+                texture_data = cv2.cvtColor(
+                    resize_image, cv2.COLOR_BGR2RGB
+                ).astype(np.float32)
+                texture_data /= 255.0
+                return texture_data.ravel()
             data = np.flip(resize_image, 2)  # BGR to RGB
-            data = data.ravel()
-            data = np.asfarray(data, dtype='f')
+            data = np.asarray(data.ravel(), dtype=np.float32)
             texture_data = np.true_divide(data, 255.0)
             return texture_data
         except Exception as e:

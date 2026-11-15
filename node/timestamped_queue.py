@@ -80,11 +80,11 @@ class TimestampedQueue:
         with self._lock:
             self._queue.append(timestamped_data)
             
-            # Log the data insertion with timestamp and data type (DEBUG to avoid per-frame pollution)
-            data_type = type(data).__name__
+            # Lazy formatting: this runs for every node output on every frame
             logger.debug(
-                f"Queue [{self._node_id}] - Inserted data: type={data_type}, "
-                f"timestamp={timestamp:.6f}, queue_size={len(self._queue)}/{self._maxsize}"
+                "Queue [%s] - Inserted data: type=%s, timestamp=%.6f, queue_size=%d/%d",
+                self._node_id, type(data).__name__, timestamp,
+                len(self._queue), self._maxsize,
             )
     
     def get_oldest(self) -> Optional[TimestampedData]:
@@ -191,6 +191,18 @@ class NodeDataQueueManager:
                 )
             
             return self._queues[node_id_name][data_type]
+
+    def _find_queue(self, node_id_name: str, data_type: str) -> Optional[TimestampedQueue]:
+        """Return the existing queue, or None, without creating it.
+
+        The queue reference is resolved under the lock so a concurrent
+        remove_node() cannot raise KeyError between the check and the access.
+        """
+        with self._lock:
+            node_queues = self._queues.get(node_id_name)
+            if node_queues is None:
+                return None
+            return node_queues.get(data_type)
     
     def put_data(self, node_id_name: str, data_type: str, data: Any, 
                  timestamp: Optional[float] = None) -> None:
@@ -212,7 +224,8 @@ class NodeDataQueueManager:
         
         # Log at DEBUG to avoid per-frame log pollution
         logger.debug(
-            f"Manager - Node [{node_id_name}] received {data_type} data at timestamp={timestamp:.6f}"
+            "Manager - Node [%s] received %s data at timestamp=%.6f",
+            node_id_name, data_type, timestamp,
         )
     
     def get_oldest_data(self, node_id_name: str, data_type: str = "default") -> Optional[Any]:
@@ -226,11 +239,11 @@ class NodeDataQueueManager:
         Returns:
             The oldest data, or None if queue doesn't exist or is empty.
         """
-        with self._lock:
-            if node_id_name not in self._queues or data_type not in self._queues[node_id_name]:
-                return None
-        
-        timestamped_data = self._queues[node_id_name][data_type].get_oldest()
+        queue = self._find_queue(node_id_name, data_type)
+        if queue is None:
+            return None
+
+        timestamped_data = queue.get_oldest()
         return timestamped_data.data if timestamped_data else None
     
     def get_latest_data(self, node_id_name: str, data_type: str = "default") -> Optional[Any]:
@@ -244,11 +257,11 @@ class NodeDataQueueManager:
         Returns:
             The most recent data, or None if queue doesn't exist or is empty.
         """
-        with self._lock:
-            if node_id_name not in self._queues or data_type not in self._queues[node_id_name]:
-                return None
-        
-        timestamped_data = self._queues[node_id_name][data_type].get_latest()
+        queue = self._find_queue(node_id_name, data_type)
+        if queue is None:
+            return None
+
+        timestamped_data = queue.get_latest()
         return timestamped_data.data if timestamped_data else None
     
     def clear_node_queues(self, node_id_name: str) -> None:
