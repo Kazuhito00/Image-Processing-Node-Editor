@@ -417,7 +417,9 @@ class Node(Node):
             frame_dict = {}
             for output_index, input_index in enumerate(reversed(slots_to_process)):
                 node_id_name = connection_info_src_dict.get(input_index, None)
-                frame = copy.deepcopy(node_image_dict.get(node_id_name, None))
+                # No defensive copy: draw_info() and cv2.resize() both return
+                # new arrays and never modify the source frame.
+                frame = node_image_dict.get(node_id_name, None)
                 if frame is not None:
                     if draw_info_on_result:
                         node_result = node_result_dict[node_id_name]
@@ -427,7 +429,8 @@ class Node(Node):
                             target_height=resize_height, target_width=resize_width
                         )
                     resize_frame = cv2.resize(frame, (resize_width, resize_height))
-                    frame_dict[output_index] = copy.deepcopy(resize_frame)
+                    # cv2.resize already returns a new array: no extra copy needed
+                    frame_dict[output_index] = resize_frame
 
                     frame_exist_flag = True
                 else:

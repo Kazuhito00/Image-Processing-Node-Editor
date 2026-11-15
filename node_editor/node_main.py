@@ -24,6 +24,7 @@ from src.utils.logging import get_logger
 
 # Uptime tracking
 _start_time = time.time()
+_last_uptime_state = None
 
 dpg.create_context()
 
@@ -45,16 +46,22 @@ def _is_ctrl_down():
 
 def update_uptime_display():
     """Update the uptime text in the menu bar (far right)."""
+    global _last_uptime_state
     elapsed = int(time.time() - _start_time)
-    hours = elapsed // 3600
-    minutes = (elapsed % 3600) // 60
-    seconds = elapsed % 60
     try:
+        vp_width = dpg.get_viewport_client_width()
+        # Called on every pipeline iteration: only touch the widgets when the
+        # displayed second or the viewport width actually changed.
+        if (elapsed, vp_width) == _last_uptime_state:
+            return
+        hours = elapsed // 3600
+        minutes = (elapsed % 3600) // 60
+        seconds = elapsed % 60
         dpg.set_value("uptime_display", f"Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}")
         # Push the uptime text to the far right of the viewport
-        vp_width = dpg.get_viewport_client_width()
         text_width = 160  # approximate width of "Uptime: HH:MM:SS"
         dpg.set_item_indent("uptime_display", max(0, vp_width - text_width))
+        _last_uptime_state = (elapsed, vp_width)
     except Exception:
         pass
 

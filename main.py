@@ -52,6 +52,9 @@ _node_editor_ref = None
 _fault_log_file_handle = None
 _fault_log_atexit_registered = False
 
+# Connection types that carry frame data (and therefore a source timestamp)
+_DATA_CONNECTION_TYPES = frozenset(("IMAGE", "AUDIO", "JSON"))
+
 
 def _log_thread_exception(args):
     thread_name = getattr(args.thread, "name", "unknown")
@@ -330,9 +333,6 @@ def update_node_info(
     # async worker thread while the main thread can delete nodes concurrently
     # (unlocked concurrent DPG mutation segfaults, notably on Linux).
     with _dpg_lock:
-        editor_width = dpg.get_viewport_client_width()
-        editor_height = dpg.get_viewport_client_height()
-
         # Update uptime display
         update_uptime_display()
 
@@ -365,7 +365,8 @@ def update_node_info(
                 # Node was deleted after the snapshot was taken; skip it.
                 continue
             logger.debug(
-                f"Processing node {node_id_name} with connections: {connection_list}"
+                "Processing node %s with connections: %s",
+                node_id_name, connection_list,
             )
             if mode_async:
                 try:
@@ -392,7 +393,10 @@ def update_node_info(
             # that share memory with DPG texture buffers are fully copied
             # before the lock is released.  Without this, the main thread
             # can delete the texture (freeing its buffer) between here and
-            # the deepcopy call below, which causes a segfault on Linux.
+            # the copy is used below, which causes a segfault on Linux.
+            # This is the only copy made: `data` is private to this function
+            # from here on, so its members are stored without copying again
+            # (copying every frame twice was the main per-node overhead).
             data = copy.deepcopy(data)
 
         try:
@@ -412,7 +416,7 @@ def update_node_info(
                     continue
                     
                 connection_type = connection_parts[2]
-                if connection_type in ["IMAGE", "AUDIO", "JSON"]:
+                if connection_type in _DATA_CONNECTION_TYPES:
                     has_data_input = True
                     # Get the timestamp from the source node
                     source_node_id = ":".join(connection_parts[:2])
@@ -440,25 +444,24 @@ def update_node_info(
             # 3. For input nodes without explicit timestamp: create new timestamp automatically
             if has_data_input and source_timestamp is not None:
                 # Processing node - preserve source timestamp
-                node_image_dict.set_with_timestamp(node_id_name, copy.deepcopy(data["image"]), source_timestamp)
-                node_result_dict.set_with_timestamp(node_id_name, copy.deepcopy(data["json"]), source_timestamp)
-                node_audio_dict.set_with_timestamp(node_id_name, copy.deepcopy(data["audio"]), source_timestamp)
-                logger.debug(f"Node {node_id_name} preserved timestamp {source_timestamp:.6f} from source")
+                node_image_dict.set_with_timestamp(node_id_name, data["image"], source_timestamp)
+                node_result_dict.set_with_timestamp(node_id_name, data["json"], source_timestamp)
+                node_audio_dict.set_with_timestamp(node_id_name, data["audio"], source_timestamp)
+                logger.debug("Node %s preserved timestamp %.6f from source", node_id_name, source_timestamp)
             elif node_provided_timestamp is not None:
                 # Input node with explicit timestamp (e.g., Video node with FPS-based timing)
-                node_image_dict.set_with_timestamp(node_id_name, copy.deepcopy(data["image"]), node_provided_timestamp)
-                node_result_dict.set_with_timestamp(node_id_name, copy.deepcopy(data["json"]), node_provided_timestamp)
-                node_audio_dict.set_with_timestamp(node_id_name, copy.deepcopy(data["audio"]), node_provided_timestamp)
-                logger.debug(f"Node {node_id_name} used explicit timestamp {node_provided_timestamp:.6f}")
+                node_image_dict.set_with_timestamp(node_id_name, data["image"], node_provided_timestamp)
+                node_result_dict.set_with_timestamp(node_id_name, data["json"], node_provided_timestamp)
+                node_audio_dict.set_with_timestamp(node_id_name, data["audio"], node_provided_timestamp)
+                logger.debug("Node %s used explicit timestamp %.6f", node_id_name, node_provided_timestamp)
             else:
                 # Input node without explicit timestamp - create new timestamp automatically
-                node_image_dict[node_id_name] = copy.deepcopy(data["image"])
-                node_result_dict[node_id_name] = copy.deepcopy(data["json"])
-                node_audio_dict[node_id_name] = copy.deepcopy(data["audio"])
-                logger.debug(f"Node {node_id_name} created new timestamp (input node)")
+                node_image_dict[node_id_name] = data["image"]
+                node_result_dict[node_id_name] = data["json"]
+                node_audio_dict[node_id_name] = data["audio"]
+                logger.debug("Node %s created new timestamp (input node)", node_id_name)
         except Exception as e:
             logger.error(f"Error processing node {node_id_name} results: {e}")
-
 
 
 def show_splash_screen(duration_seconds=5.0, steps=150):
@@ -467,7 +470,6 @@ def show_splash_screen(duration_seconds=5.0, steps=150):
 
 
 def main():
-    import sys
     args = get_args()
     setting = args.setting
     unuse_async_draw = args.unuse_async_draw
@@ -550,11 +552,9 @@ def main():
     serial_device_no_list = []
     serial_connection_list = []
     use_serial = opencv_setting_dict["use_serial"]
-    if use_serial == True:
-        try:
-            from .node_editor.util import check_serial_connection
-        except:
-            from node_editor.util import check_serial_connection
+    if use_serial:
+        import serial
+        from node_editor.util import check_serial_connection
         logger.info("Checking serial device connections")
         serial_device_no_list = check_serial_connection()
         for serial_device_no in serial_device_no_list:
@@ -633,7 +633,6 @@ def main():
     )
 
     # Store reference for nodes that need access to the editor (e.g., Deploy node)
-    import sys
     sys.modules[__name__]._node_editor_ref = node_editor
 
     logger.info("Starting main event loop")

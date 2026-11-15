@@ -187,6 +187,7 @@ class FreeYOLO(object):
         return scores, labels, bboxes
 
     def _multiclass_nms_class_aware(
+        self,
         scores,
         labels,
         bboxes,
@@ -194,7 +195,7 @@ class FreeYOLO(object):
         num_classes,
     ):
         # nms
-        keep = np.zeros(len(bboxes), dtype=np.int)
+        keep = np.zeros(len(bboxes), dtype=np.int64)
         for i in range(num_classes):
             inds = np.where(labels == i)[0]
             if len(inds) == 0:

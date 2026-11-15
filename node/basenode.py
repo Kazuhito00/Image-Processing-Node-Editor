@@ -94,6 +94,19 @@ class Node:
     def convert_cv_to_dpg(self, image, width, height):
         resize_image = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
 
+        if (
+            resize_image.dtype == np.uint8
+            and resize_image.ndim == 3
+            and resize_image.shape[2] == 3
+        ):
+            # Fast path (called for every displayed frame): contiguous
+            # channel swap, then a single float32 buffer normalised in place.
+            texture_data = cv2.cvtColor(resize_image, cv2.COLOR_BGR2RGB).astype(
+                np.float32
+            )
+            texture_data /= 255.0
+            return texture_data.ravel()
+
         data = np.flip(resize_image, 2)
         data = data.ravel()
         data = np.asarray(data, dtype=np.float32)
@@ -465,23 +478,22 @@ class Node:
     ):
         debug_image = copy.deepcopy(image)
 
-        segmentation_map = np.where(segmentation_map > score_th, 0, 1)
+        segmentation_map = np.asarray(segmentation_map)
 
         # color map list — use at least as many entries as there are masks
         color_map = self.get_color_map_list(max(class_num, len(segmentation_map)))
 
+        # Blend only the pixels selected by each mask instead of building
+        # full-frame background/mask images for every class.
         for index, mask in enumerate(segmentation_map):
-            bg_image = np.zeros(image.shape, dtype=np.uint8)
-            bg_image[:] = (
-                color_map[index * 3 + 0],
-                color_map[index * 3 + 1],
-                color_map[index * 3 + 2],
-            )
+            selected = mask > score_th
+            if not selected.any():
+                continue
 
-            mask = np.stack((mask,) * 3, axis=-1).astype("uint8")
-
-            mask_image = np.where(mask, debug_image, bg_image)
-            debug_image = cv2.addWeighted(debug_image, 0.5, mask_image, 0.5, 0)
+            pixels = debug_image[selected]
+            color = np.empty_like(pixels)
+            color[:] = color_map[index * 3 : index * 3 + 3]
+            debug_image[selected] = cv2.addWeighted(pixels, 0.5, color, 0.5, 0)
 
         return debug_image
 

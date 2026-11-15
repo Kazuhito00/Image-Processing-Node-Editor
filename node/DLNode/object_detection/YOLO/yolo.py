@@ -33,8 +33,7 @@ class YOLO:
         self.input_width, self.input_height = self.input_shape
 
     def __call__(self, image):
-        temp_image = copy.deepcopy(image)
-        temp_image = cv2.resize(temp_image, (608, 416), interpolation=cv2.INTER_AREA)
+        temp_image = cv2.resize(image, (608, 416), interpolation=cv2.INTER_AREA)
         image = self._preprocess(temp_image)
         # Debug: print("preprocess", image.shape) 
         results = self.onnx_session.run(None, {self.input_name: image})
@@ -52,40 +51,26 @@ class YOLO:
 
     def _postprocess(self, outputs, nms_th, nms_score_th):
         outputs = np.transpose(np.squeeze(outputs[0]))
-        rows = outputs.shape[0]
-        
-        boxes, scores, class_ids = [], [], []
-        gain = 1
 
-        for i in range(rows):
-            # Extract the class scores from the current row
-            classes_scores = outputs[i][4:]
+        # Vectorised decoding: one pass over all candidate rows instead of a
+        # Python loop over thousands of predictions per frame.
+        classes_scores = outputs[:, 4:]
+        max_scores = classes_scores.max(axis=1)
+        keep = max_scores >= nms_score_th
+        if not keep.any():
+            return np.array([]), np.array([]), np.array([])
 
-            # Find the maximum score among the class scores
-            max_score = np.amax(classes_scores)
+        kept = outputs[keep]
+        x, y, w, h = kept[:, 0], kept[:, 1], kept[:, 2], kept[:, 3]
 
-            # If the maximum score is above the confidence threshold
-            if max_score >= nms_score_th:
-                # Get the class ID with the highest score
-                class_id = np.argmax(classes_scores)
+        # Convert (x, y, w, h) to (x1, y1, x2, y2), truncating like int()
+        boxes = np.stack(
+            (x - w / 2, y - h / 2, x + w / 2, y + h / 2), axis=1
+        ).astype(np.int64)
+        scores = max_scores[keep]
+        class_ids = classes_scores[keep].argmax(axis=1)
 
-                # Extract the bounding box coordinates from the current row
-                x, y, w, h = outputs[i][0], outputs[i][1], outputs[i][2], outputs[i][3]
-
-                # Convert (x, y, w, h) to (x1, y1, x2, y2)
-                x1 = int((x - w / 2) / gain)
-                y1 = int((y - h / 2) / gain)
-                x2 = int((x + w / 2) / gain)
-                y2 = int((y + h / 2) / gain)
-
-                # Add the class ID, score, and box coordinates to the respective lists
-                class_ids.append(class_id)
-                scores.append(max_score)
-                boxes.append([x1, y1, x2, y2])
-
-        # Apply non-maximum suppression to filter out overlapping bounding boxes
-        indices = cv2.dnn.NMSBoxes(boxes, scores, nms_score_th, nms_th)
-        return np.array(boxes), np.array(scores), np.array(class_ids)
+        return boxes, scores, class_ids
 
 
     def draw(self, image, score_th, bboxes, scores, class_ids, coco_classes, thickness=1):
