@@ -294,6 +294,19 @@ def get_args():
             "when not provided."
         ),
     )
+    parser.add_argument(
+        "--smoke-test",
+        nargs="?",
+        const=30,
+        default=None,
+        type=int,
+        metavar="FRAMES",
+        help=(
+            "Start the full application (config, DearPyGui, node discovery), "
+            "render FRAMES frames (default 30), then exit. Exit code 0 means the "
+            "build starts without error. Used by CI to validate the frozen .exe."
+        ),
+    )
     args = parser.parse_args()
     return args
 
@@ -476,6 +489,8 @@ def main():
     use_debug_print = args.use_debug_print
     fault_log = args.fault_log
     log_file = args.log_file
+    smoke_test_frames = args.smoke_test
+    smoke_test = smoke_test_frames is not None
 
     # Setup logging based on debug flag.
     # On Windows, setup_logging() automatically writes to
@@ -488,6 +503,8 @@ def main():
     logger.info("=" * 60)
     logger.info("CV_STUDIO Starting")
     logger.info("=" * 60)
+    if smoke_test:
+        logger.info("Smoke-test mode: will render %d frame(s) then exit", smoke_test_frames)
 
     # Log platform and Python version for easier remote diagnosis.
     logger.info(
@@ -596,7 +613,8 @@ def main():
 
     # Viewport must be visible before rendering splash frames.
     dpg.show_viewport(maximized=True)
-    show_splash_screen()
+    if not smoke_test:
+        show_splash_screen()
 
     logger.info("Creating Node Editor")
     menu_dict = OrderedDict(
@@ -652,12 +670,17 @@ def main():
         # The lock is released between frames so the worker thread can acquire
         # it to make DPG calls without starving.  The 1ms sleep outside the
         # lock yields CPU time; DPG's built-in vsync caps the frame rate.
+        rendered_frames = 0
         while dpg.is_dearpygui_running():
             with _dpg_lock:
                 dpg.render_dearpygui_frame()
             # Delete items queued during the frame (textures of deleted nodes):
             # destroying them while the frame is being drawn segfaults on Linux.
             process_deferred_deletes()
+            rendered_frames += 1
+            if smoke_test and rendered_frames >= smoke_test_frames:
+                logger.info("Smoke-test: %d frames rendered, stopping", rendered_frames)
+                dpg.stop_dearpygui()
             time.sleep(0.001)  # 1ms yield between frames
 
     else:
@@ -670,6 +693,7 @@ def main():
         node_result_dict._node_instances = node_editor._node_instances_list
         node_result_dict._node_link_list = node_editor._node_link_list
         
+        rendered_frames = 0
         while dpg.is_dearpygui_running():
             update_node_info(
                 node_editor,
@@ -680,6 +704,10 @@ def main():
             )
             dpg.render_dearpygui_frame()
             process_deferred_deletes()
+            rendered_frames += 1
+            if smoke_test and rendered_frames >= smoke_test_frames:
+                logger.info("Smoke-test: %d frames rendered, stopping", rendered_frames)
+                dpg.stop_dearpygui()
 
     logger.info("Terminating process")
 
@@ -712,6 +740,31 @@ def main():
 
     logger.info("CV_STUDIO shutdown complete")
 
+    if smoke_test:
+        node_count = len(node_editor._node_factory_list)
+        if node_count == 0:
+            raise RuntimeError("Smoke-test failed: no node factory was discovered")
+        logger.info("SMOKE TEST PASSED: %d node types discovered", node_count)
+        print(f"SMOKE TEST PASSED: {node_count} node types discovered", flush=True)
+
+
+def _run():
+    """Run main() and translate any failure into a non-zero exit code.
+
+    Without this, an exception raised during startup in the frozen .exe may
+    only show up in a console window that closes immediately, and CI would
+    have no reliable signal that the build is broken.
+    """
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException:
+        logger.exception("CV_STUDIO terminated with an unhandled exception")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     # Enable multiprocessing support for frozen executables (PyInstaller)
@@ -719,4 +772,4 @@ if __name__ == "__main__":
     # On Windows, when the executable spawns child processes for multiprocessing,
     # they will re-execute this script with special arguments that freeze_support() handles
     multiprocessing.freeze_support()
-    main()
+    _run()

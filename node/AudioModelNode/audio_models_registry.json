@@ -1,7 +1,7 @@
 [
   {
     "name": "YAMNet",
-    "path": "/media/lamaaz/DL/CV_Studio/node/AudioModelNode/models/yamnet.onnx",
+    "path": "/root/CV_Studio/node/AudioModelNode/models/yamnet.onnx",
     "n_mels": 64,
     "fixed_time": 96,
     "target_sr": 16000,

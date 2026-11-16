@@ -142,6 +142,7 @@ python main.py
 | `--setting <chemin>` | Fichier de configuration personnalisé (défaut : `node_editor/setting/setting.json`) |
 | `--unuse_async_draw` | Désactiver le dessin asynchrone (débogage) |
 | `--use_debug_print` | Activer les logs de débogage |
+| `--smoke-test [N]` | Démarrage complet, rendu de N frames (30 par défaut) puis sortie ; code 0 = OK (utilisé en CI) |
 
 ### Premiers pas
 

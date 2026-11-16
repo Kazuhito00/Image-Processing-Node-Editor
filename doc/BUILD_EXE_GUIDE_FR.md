@@ -132,6 +132,10 @@ CV_Studio.exe --use_debug_print
 
 # Désactiver le rendu asynchrone
 CV_Studio.exe --unuse_async_draw
+
+# Smoke test : démarrage complet, rendu de 30 frames, puis sortie (code 0 = OK).
+# Utilisé par le workflow GitHub Actions pour valider chaque build.
+CV_Studio.exe --smoke-test
 ```
 
 ## 🧪 Test de l'exécutable

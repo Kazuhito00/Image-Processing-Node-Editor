@@ -100,6 +100,67 @@ jobs:
           exit 1
         }
 
+    # 7.5️⃣ Lancer réellement l'exe : démarrage complet (config, DearPyGui,
+    # découverte des nœuds), rendu de quelques frames, puis sortie.
+    # Un import manquant dans le bundle PyInstaller ou un crash au démarrage
+    # fait échouer cette étape au lieu d'être découvert par l'utilisateur.
+    - name: Smoke-test the executable
+      shell: pwsh
+      run: |
+        $exe = Resolve-Path "dist/CV_Studio/CV_Studio.exe"
+        $log = Join-Path $PWD "smoke-test.log"
+        $timeoutMs = 10 * 60 * 1000
+
+        $proc = Start-Process -FilePath $exe `
+          -ArgumentList @("--smoke-test", "60", "--log-file", "`"$log`"") `
+          -WorkingDirectory (Split-Path $exe) `
+          -NoNewWindow -PassThru `
+          -RedirectStandardOutput smoke-stdout.txt `
+          -RedirectStandardError smoke-stderr.txt
+        # Accéder au handle avant WaitForExit, sinon ExitCode peut rester vide
+        $null = $proc.Handle
+
+        $finished = $proc.WaitForExit($timeoutMs)
+        if (-not $finished) {
+          Write-Host "::error::CV_Studio.exe did not exit within $($timeoutMs / 1000)s - startup hang"
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          $exitCode = 124
+        } else {
+          $exitCode = $proc.ExitCode
+        }
+
+        Write-Host "===== stdout ====="
+        if (Test-Path smoke-stdout.txt) { Get-Content smoke-stdout.txt }
+        Write-Host "===== stderr ====="
+        if (Test-Path smoke-stderr.txt) { Get-Content smoke-stderr.txt }
+        Write-Host "===== application log (tail) ====="
+        if (Test-Path $log) { Get-Content $log -Tail 80 }
+
+        $passed = (Test-Path smoke-stdout.txt) -and
+          (Select-String -Path smoke-stdout.txt -Pattern "SMOKE TEST PASSED" -Quiet)
+
+        if ($exitCode -ne 0) {
+          Write-Host "::error::CV_Studio.exe exited with code $exitCode"
+          exit 1
+        }
+        if (-not $passed) {
+          Write-Host "::error::CV_Studio.exe exited 0 but did not report SMOKE TEST PASSED"
+          exit 1
+        }
+        Write-Host "✓ CV_Studio.exe starts and runs without error"
+
+    - name: Upload smoke-test logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: smoke-test-logs
+        path: |
+          smoke-test.log
+          smoke-stdout.txt
+          smoke-stderr.txt
+        if-no-files-found: ignore
+        retention-days: 7
+
     # 8️⃣ Créer l’archive zip
     - name: Create archive
       run: |
