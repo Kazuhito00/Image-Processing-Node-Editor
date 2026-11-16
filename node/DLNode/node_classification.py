@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import dpg_get_value, dpg_set_value
+from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 
 from node.node_abc import DpgNodeABC
 
@@ -920,7 +920,8 @@ class Node(Node):
 
                 # 各バウンディングボックスに対しClassification推論
                 if batch_mode and len(frame_list) > 0:
-                    batch_scores, batch_ids = self._run_batch_inference(
+                    batch_scores, batch_ids = run_unlocked(
+                        self._run_batch_inference,
                         self._model_instance[model_name_with_provider],
                         frame_list,
                     )
@@ -928,8 +929,10 @@ class Node(Node):
                     class_id_list = list(batch_ids)
                 else:
                     for temp_frame in frame_list:
-                        class_scores, class_ids = self._model_instance[
-                            model_name_with_provider](temp_frame)
+                        class_scores, class_ids = run_unlocked(
+                            self._model_instance[model_name_with_provider],
+                            temp_frame,
+                        )
                         score_list.append(class_scores[0])
                         class_id_list.append(class_ids[0])
                 result['use_object_detection'] = True
@@ -943,8 +946,9 @@ class Node(Node):
                 result['od_score_th'] = od_score_th
                 result['od_raw_frame'] = od_raw_frame
             else:
-                class_scores, class_ids = self._model_instance[
-                    model_name_with_provider](frame)
+                class_scores, class_ids = run_unlocked(
+                    self._model_instance[model_name_with_provider], frame
+                )
                 result['use_object_detection'] = False
                 result['class_ids'] = class_ids.tolist()
                 result['class_scores'] = class_scores.tolist()

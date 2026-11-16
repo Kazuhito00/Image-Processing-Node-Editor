@@ -6,7 +6,7 @@ import os
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import dpg_get_value, dpg_set_value
+from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 
 from node.node_abc import DpgNodeABC
 #from node_editor.util import convert_cv_to_dpg
@@ -251,7 +251,9 @@ class Node(Node):
             start_time = time.monotonic()
 
         if frame is not None:
-            frame = self._model_instance[model_name_with_provider](frame)
+            frame = run_unlocked(
+                self._model_instance[model_name_with_provider], frame
+            )
 
 
         if frame is not None and use_pref_counter:

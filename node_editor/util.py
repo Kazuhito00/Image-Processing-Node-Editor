@@ -4,15 +4,35 @@ import cv2
 import logging
 import numpy as np
 import threading
+
 import dearpygui.dearpygui as dpg
 
-# Global lock for thread-safe DearPyGUI operations
-# RLock (reentrant lock) allows the same thread to acquire the lock multiple times,
-# which is necessary when nested DearPyGUI calls occur within the same thread.
+from node_editor.scheduling import UiPriorityLock
+
+
+# Global lock for thread-safe DearPyGUI operations.
+# Reentrant: nested DearPyGUI helpers are called within the same thread.
 # This protects against race conditions between:
-# - Main thread: Processing UI events via dpg.start_dearpygui()
-# - Worker thread: Updating nodes via async_main() in thread executor
-_dpg_lock = threading.RLock()
+# - Main thread: rendering frames (see main.py)
+# - Worker thread: updating nodes via async_main() in thread executor
+# - DearPyGui callback thread: menus, links, node deletion
+_dpg_lock = UiPriorityLock()
+
+
+def run_unlocked(func, *args, **kwargs):
+    """Call ``func`` with ``_dpg_lock`` released and return its result.
+
+    Nodes are updated with the lock held, which freezes the interface for as
+    long as the update lasts.  Long computations (model inference) go through
+    this helper so that frames keep being drawn meanwhile.
+
+    ``func`` must not call DearPyGui.  The node may be deleted while it runs:
+    the caller must only touch DearPyGui items through the existence-checking
+    helpers of this module afterwards.
+    """
+    with _dpg_lock.released():
+        return func(*args, **kwargs)
+
 
 logger = logging.getLogger(__name__)
 

@@ -34,8 +34,10 @@ from node_editor.util import (
     _dpg_lock,
     process_deferred_deletes,
 )
+from node_editor.scheduling import FramePacer
 from node_editor.node_main import DpgNodeEditor
 from node_editor.node_main import update_uptime_display
+from node_editor.zoom import register_overview_fonts
 
 # Import timestamped queue system
 from node.timestamped_queue import NodeDataQueueManager
@@ -303,7 +305,8 @@ def get_args():
         metavar="FRAMES",
         help=(
             "Start the full application (config, DearPyGui, node discovery), "
-            "render FRAMES frames (default 30), then exit. Exit code 0 means the "
+            "add a node, zoom out and back, render FRAMES frames (default 30), "
+            "then exit. Exit code 0 means the "
             "build starts without error. Used by CI to validate the frozen .exe."
         ),
     )
@@ -311,7 +314,17 @@ def get_args():
     return args
 
 
-def async_main(node_editor, queue_manager):
+def async_main(node_editor, queue_manager, stopped=None):
+    try:
+        _async_main(node_editor, queue_manager)
+    finally:
+        # Lets the main thread know that no DearPyGui call can come from
+        # this thread any more (see the shutdown sequence in main()).
+        if stopped is not None:
+            stopped.set()
+
+
+def _async_main(node_editor, queue_manager):
     # Create queue-backed dictionaries for backward compatibility
     node_image_dict = QueueBackedDict(queue_manager, "image")
     node_result_dict = QueueBackedDict(queue_manager, "json")
@@ -363,6 +376,9 @@ def update_node_info(
     sorted_node_connection_dict = node_editor.get_sorted_node_connection()
 
     for node_id_name in node_list:
+        if node_editor.get_terminate_flag():
+            # Shutting down: the DearPyGui context is about to be destroyed.
+            return
         if node_id_name not in node_image_dict:
             node_image_dict[node_id_name] = None
 
@@ -482,6 +498,44 @@ def show_splash_screen(duration_seconds=5.0, steps=150):
     _show_splash_screen(duration_seconds=duration_seconds, steps=steps)
 
 
+def _smoke_test_steps(node_editor):
+    """Exercise the node editor during a smoke test, one step per frame.
+
+    Adds a node, zooms out to the furthest overview level and back, so that
+    the frozen build is checked on what the interface actually draws, not
+    only on an empty editor.  Raises on any inconsistency.
+    """
+    yield "start"
+    node_tag = next(
+        (tag for tag in ("Blur", "Grayscale") if node_editor.get_node_factory(tag)),
+        None,
+    )
+    if node_tag is None:
+        raise RuntimeError("Smoke-test failed: no basic node available")
+    node_editor._callback_add_node(None, None, node_tag)
+    node_name = node_editor.get_node_list()[-1]
+    with _dpg_lock:
+        label = dpg.get_item_label(node_name)
+    yield "node added"
+
+    levels = 0
+    while node_editor._zoom.scale > min(node_editor._zoom._levels):
+        node_editor._callback_zoom_out()
+        levels += 1
+        yield "zoomed out"
+    node_editor._callback_zoom_reset()
+    yield "zoom reset"
+
+    with _dpg_lock:
+        restored = dpg.get_item_label(node_name)
+    if node_editor._zoom.is_zoomed_out or restored != label:
+        raise RuntimeError(
+            f"Smoke-test failed: zoom not restored ({label!r} -> {restored!r})"
+        )
+    logger.info("Smoke-test: node %s zoomed through %d overview levels", node_name, levels)
+    yield "done"
+
+
 def main():
     args = get_args()
     setting = args.setting
@@ -565,6 +619,7 @@ def main():
 
     editor_width = opencv_setting_dict["editor_width"]
     editor_height = opencv_setting_dict["editor_height"]
+    ui_fps = opencv_setting_dict.get("ui_fps", 60)
 
     serial_device_no_list = []
     serial_connection_list = []
@@ -592,6 +647,10 @@ def main():
         height=editor_height,
         x_pos=0,
         y_pos=0,
+        # A vsync'd frame blocks until the monitor refresh with _dpg_lock
+        # held, which starves the node update thread.  The render loop paces
+        # itself instead (FramePacer), with the lock released.
+        vsync=unuse_async_draw,
     )
 
     # Load Space Grotesk font (minimalist, futuristic, elegant, architectural)
@@ -606,6 +665,7 @@ def main():
     if os.path.isfile(_font_path):
         with dpg.font_registry():
             default_font = dpg.add_font(_font_path, 18)
+            register_overview_fonts(_font_path)
         dpg.bind_font(default_font)
         logger.info(f"Loaded custom font: {os.path.basename(_font_path)}")
     else:
@@ -655,6 +715,7 @@ def main():
 
     logger.info("Starting main event loop")
     event_loop = None
+    worker_stopped = None
     if not unuse_async_draw:
         logger.info("Async draw is enabled")
         # asyncio.get_event_loop() is deprecated in Python 3.10+ when there is
@@ -662,26 +723,34 @@ def main():
         # Create and install a new event loop explicitly instead.
         event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(event_loop)
-        event_loop.run_in_executor(None, async_main, node_editor, queue_manager)
+        worker_stopped = threading.Event()
+        event_loop.run_in_executor(
+            None, async_main, node_editor, queue_manager, worker_stopped
+        )
         # Use a manual render loop instead of dpg.start_dearpygui() so that
         # each frame render holds _dpg_lock.  dpg.start_dearpygui() runs the
         # DPG C-level loop without acquiring _dpg_lock, which races with the
         # worker thread's DPG calls and causes a segfault on Linux.
-        # The lock is released between frames so the worker thread can acquire
-        # it to make DPG calls without starving.  The 1ms sleep outside the
-        # lock yields CPU time; DPG's built-in vsync caps the frame rate.
+        # ui_frame() puts the render ahead of the worker thread, which would
+        # otherwise keep the lock for a whole pass over the graph.  The frame
+        # rate is capped by the pacer, which waits with the lock released:
+        # that is when the worker thread updates the nodes.
+        pacer = FramePacer(ui_fps)
         rendered_frames = 0
+        smoke_steps = _smoke_test_steps(node_editor) if smoke_test else None
         while dpg.is_dearpygui_running():
-            with _dpg_lock:
+            with _dpg_lock.ui_frame():
                 dpg.render_dearpygui_frame()
             # Delete items queued during the frame (textures of deleted nodes):
             # destroying them while the frame is being drawn segfaults on Linux.
             process_deferred_deletes()
             rendered_frames += 1
-            if smoke_test and rendered_frames >= smoke_test_frames:
+            if smoke_steps is not None and next(smoke_steps, None) is None:
+                smoke_steps = None
+            if smoke_test and smoke_steps is None and rendered_frames >= smoke_test_frames:
                 logger.info("Smoke-test: %d frames rendered, stopping", rendered_frames)
                 dpg.stop_dearpygui()
-            time.sleep(0.001)  # 1ms yield between frames
+            pacer.wait()
 
     else:
         logger.info("Async draw is disabled")
@@ -716,6 +785,8 @@ def main():
 
     # Signal async loop to stop before closing nodes so update calls cease
     node_editor.set_terminate_flag()
+    if worker_stopped is not None and not worker_stopped.wait(timeout=10):
+        logger.warning("Node update thread still running; shutting down anyway")
 
     logger.info("Closing all nodes")
     node_list = node_editor.get_node_list()

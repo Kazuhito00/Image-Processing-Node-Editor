@@ -31,6 +31,7 @@ def _load_object_detection_module():
         'node_editor.util': types.SimpleNamespace(
             dpg_get_value=mock.MagicMock(),
             dpg_set_value=mock.MagicMock(),
+            run_unlocked=lambda func, *args, **kwargs: func(*args, **kwargs),
         ),
         'node.basenode': types.SimpleNamespace(Node=type('BaseNode', (), {})),
         'src': types.ModuleType('src'),

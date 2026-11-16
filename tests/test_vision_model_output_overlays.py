@@ -152,7 +152,8 @@ def test_llie_returns_processed():
         content = f.read()
     
     # Check that it returns the processed frame (enhanced image)
-    assert 'frame = self._model_instance[model_name_with_provider](frame)' in content, \
+    assert 'frame = run_unlocked(' in content and \
+        'self._model_instance[model_name_with_provider], frame' in content, \
         "LLIE should process frame through model"
     assert 'return {"image": frame' in content, \
         "LLIE should return processed frame"

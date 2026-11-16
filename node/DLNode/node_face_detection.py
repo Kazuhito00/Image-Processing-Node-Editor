@@ -9,7 +9,7 @@ import requests
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import dpg_get_value, dpg_set_value
+from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 
 from node.node_abc import DpgNodeABC
 #from node_editor.util import convert_cv_to_dpg
@@ -559,8 +559,9 @@ class Node(Node):  # noqa: F811
         result = {}
         debug_frame = None
         if frame is not None:
-            results_list = self._model_instance[model_name_with_provider](
-                frame)
+            results_list = run_unlocked(
+                self._model_instance[model_name_with_provider], frame
+            )
             result['model_name'] = model_name
             result['score_th'] = score_th
             result['results_list'] = results_list

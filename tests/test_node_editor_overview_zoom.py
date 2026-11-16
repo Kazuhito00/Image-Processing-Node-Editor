@@ -27,13 +27,26 @@ to_view = zoom_module.to_view
 class FakeDpg:
     """Minimal in-memory stand-in for the DearPyGui calls used by EditorZoom."""
 
+    mvNode = "mvNode"
+    mvAll = "mvAll"
+    mvNodeStyleVar_NodePadding = "NodePadding"
+    mvNodeStyleVar_PinCircleRadius = "PinCircleRadius"
+    mvNodeStyleVar_LinkThickness = "LinkThickness"
+    mvStyleVar_ItemSpacing = "ItemSpacing"
+    mvThemeCat_Nodes = "nodes"
+    mvThemeCat_Core = "core"
+
     def __init__(self):
         self.items = {}
+        self._next_id = 1000
 
     def add(self, tag, item_type="mvGroup", parent=None, **config):
         self.items[tag] = {
             "type": f"mvAppItemType::{item_type}",
             "children": [],
+            "parent": parent,
+            "theme": None,
+            "font": None,
             "pos": [0, 0],
             "rect_min": [0, 0],
             "visible": True,
@@ -42,6 +55,47 @@ class FakeDpg:
         if parent is not None:
             self.items[parent]["children"].append(tag)
         return tag
+
+    def _new(self, item_type, parent=None, **config):
+        self._next_id += 1
+        return self.add(self._next_id, item_type, parent=parent, **config)
+
+    def add_theme(self):
+        return self._new("mvTheme")
+
+    def add_theme_component(self, item_type, parent):
+        return self._new("mvThemeComponent", parent=parent, target=item_type)
+
+    def add_theme_style(self, target, x, y=-1, category=None, parent=None):
+        return self._new("mvThemeStyle", parent=parent, target=target, value=(x, y))
+
+    def get_item_theme(self, tag):
+        return self.items[tag]["theme"]
+
+    def bind_item_theme(self, tag, theme):
+        self.items[tag]["theme"] = theme or None
+
+    def bind_item_font(self, tag, font):
+        self.items[tag]["font"] = font or None
+
+    def get_item_parent(self, tag):
+        return self.items[tag]["parent"]
+
+    def delete_item(self, tag):
+        item = self.items.pop(tag)
+        for child in item["children"]:
+            self.delete_item(child)
+        parent = item["parent"]
+        if parent in self.items:
+            self.items[parent]["children"].remove(tag)
+
+    def styles(self, theme):
+        """Overview style values currently held by ``theme``."""
+        return {
+            self.items[style]["config"]["target"]: self.items[style]["config"]["value"]
+            for component in self.items[theme]["children"]
+            for style in self.items[component]["children"]
+        }
 
     def does_item_exist(self, tag):
         return tag in self.items
@@ -86,7 +140,10 @@ def dpg(monkeypatch):
 
 def _add_node(dpg, tag, pos, image_size=(0, 0)):
     """Node with a slider, a preview inside a group, and an already hidden text."""
-    dpg.add(tag, "mvNode")
+    if "editor" not in dpg.items:
+        dpg.add("window", "mvWindowAppItem")
+        dpg.add("editor", "mvNodeEditor", parent="window")
+    dpg.add(tag, "mvNode", parent="editor", label=tag.split(":")[1])
     dpg.set_item_pos(tag, pos)
     dpg.add(f"{tag}:tex", "mvRawTexture", width=240, height=135)
     attr = dpg.add(f"{tag}:attr", "mvNodeAttribute", parent=tag)
@@ -110,7 +167,7 @@ def _size(dpg, tag):
     return (config["width"], config["height"])
 
 
-@pytest.mark.parametrize("scale", [0.7, 0.5, 0.35])
+@pytest.mark.parametrize("scale", [0.7, 0.5, 0.35, 0.25, 0.18])
 def test_view_mapping_keeps_the_pivot_fixed_and_is_reversible(scale):
     pivot = [300, 200]
 
@@ -118,8 +175,84 @@ def test_view_mapping_keeps_the_pivot_fixed_and_is_reversible(scale):
     assert to_view([500, 200], pivot, 0.5) == [400, 200]
     for logical in ([0, 0], [820, 430], [-150, 990]):
         back = to_logical(to_view(logical, pivot, scale), pivot, scale)
-        # Rounding to whole pixels loses at most one logical pixel per axis
-        assert abs(back[0] - logical[0]) <= 2 and abs(back[1] - logical[1]) <= 2
+        # Rounding to whole pixels loses at most a few logical pixels per axis
+        tolerance = 0.5 / scale + 1
+        assert abs(back[0] - logical[0]) <= tolerance
+        assert abs(back[1] - logical[1]) <= tolerance
+
+
+@pytest.mark.parametrize("label, expected", [
+    ("Blur", "Blur"),
+    ("Grayscale", "Grays"),
+    ("ObjectDetection", "ObjDe"),
+    ("MultiObjectTracking", "MuObT"),
+    ("RTSP", "RTSP"),
+    ("Text2Speech", "Te2Sp"),
+    ("Draw Information", "DraIn"),
+    ("A", "A"),
+    ("", ""),
+])
+def test_short_label_keeps_every_word_within_five_characters(label, expected):
+    assert zoom_module.short_label(label) == expected
+    assert len(zoom_module.short_label(label)) <= 5
+
+
+def test_titles_are_shortened_while_zoomed_out(dpg):
+    node = _add_node(dpg, "1:ObjectDetection", [100, 100])
+    short = _add_node(dpg, "2:Blur", [500, 300])
+    zoom = EditorZoom()
+
+    zoom.zoom_out([node, short])
+    assert dpg.items[node]["config"]["label"] == "ObjDe"
+    assert dpg.items[short]["config"]["label"] == "Blur"
+    zoom.zoom_out([node, short])
+    assert dpg.items[node]["config"]["label"] == "ObjDe"
+
+    zoom.reset([node, short])
+    assert dpg.items[node]["config"]["label"] == "ObjectDetection"
+
+
+def test_title_changed_by_the_node_while_zoomed_out_is_kept(dpg):
+    node = _add_node(dpg, "1:ObjectDetection", [100, 100])
+    zoom = EditorZoom()
+    zoom.zoom_out([node])
+
+    dpg.configure_item(node, label="Renamed")
+    zoom.reset([node])
+
+    assert dpg.items[node]["config"]["label"] == "Renamed"
+
+
+def test_nodes_get_smaller_fonts_and_paddings_as_the_view_moves_away(dpg, monkeypatch):
+    monkeypatch.setattr(zoom_module, "_overview_fonts", {0.7: "font15", 0.18: "font8"})
+    themed = _add_node(dpg, "1:Blur", [100, 100])
+    bare = _add_node(dpg, "2:Canny", [500, 300])
+    category_theme = dpg.add_theme()
+    dpg.add_theme_component("mvNode", parent=category_theme)
+    dpg.bind_item_theme(themed, category_theme)
+    zoom = EditorZoom()
+
+    zoom.zoom_out([themed, bare])
+    # The category theme is kept (it carries the colours) and extended
+    assert dpg.get_item_theme(themed) == category_theme
+    assert dpg.styles(category_theme) == {"NodePadding": (6, 6), "ItemSpacing": (6, 3)}
+    assert dpg.styles(dpg.get_item_theme(bare))["NodePadding"] == (6, 6)
+    assert dpg.items[themed]["font"] == "font15"
+
+    while zoom.zoom_out([themed, bare]):
+        pass
+    assert dpg.styles(category_theme) == {"NodePadding": (1, 1), "ItemSpacing": (1, 1)}
+    # Pins and links are styled through the item holding the editor
+    holder_styles = dpg.styles(dpg.get_item_theme("window"))
+    assert holder_styles["PinCircleRadius"] == (1.5, -1)
+    assert holder_styles["LinkThickness"] == (1.0, -1)
+    assert dpg.items[themed]["font"] == "font8"
+
+    zoom.reset([themed, bare])
+    assert dpg.get_item_theme(themed) == category_theme
+    assert len(dpg.items[category_theme]["children"]) == 1
+    assert dpg.get_item_theme(bare) is None and dpg.get_item_theme("window") is None
+    assert dpg.items[themed]["font"] is None
 
 
 def test_zoom_out_compacts_nodes_and_keeps_scaled_previews(dpg):
@@ -152,9 +285,9 @@ def test_zoom_back_to_normal_restores_everything_exactly(dpg):
     positions = {tag: dpg.get_item_pos(tag) for tag in tags}
     zoom = EditorZoom()
 
-    for _ in range(5):
+    for _ in range(7):
         zoom.zoom_out(tags)
-    assert zoom.scale == 0.35
+    assert zoom.scale == 0.18
     assert zoom.zoom_out(tags) is False
     zoom.zoom_in(tags)
     zoom.reset(tags)
@@ -162,6 +295,7 @@ def test_zoom_back_to_normal_restores_everything_exactly(dpg):
     assert not zoom.is_zoomed_out
     assert {tag: dpg.get_item_pos(tag) for tag in tags} == positions
     assert {tag: dict(item["config"]) for tag, item in dpg.items.items()} == before
+    assert all(item["theme"] is None for item in dpg.items.values())
     # A widget the node itself had hidden is not shown by the restoration
     assert not _show(dpg, "1:Blur:hidden")
     assert zoom.zoom_in(tags) is False
@@ -224,7 +358,7 @@ def test_deleted_nodes_are_ignored(dpg):
     zoom = EditorZoom()
     zoom.zoom_out([kept, deleted])
 
-    for tag in [t for t in dpg.items if t.startswith("2:Canny")]:
+    for tag in [t for t in dpg.items if str(t).startswith("2:Canny")]:
         del dpg.items[tag]
 
     assert zoom.reset([kept]) is True

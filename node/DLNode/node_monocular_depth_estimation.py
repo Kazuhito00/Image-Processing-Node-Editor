@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import dpg_get_value, dpg_set_value
+from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 
 from node.node_abc import DpgNodeABC
 #from node_editor.util import convert_cv_to_dpg
@@ -525,7 +525,9 @@ class Node(Node):
 
         result = {}
         if frame is not None:
-            depth_map = self._model_instance[model_name_with_provider](frame)
+            depth_map = run_unlocked(
+                self._model_instance[model_name_with_provider], frame
+            )
             frame = cv2.cvtColor(depth_map, cv2.COLOR_GRAY2BGR)
             result['depth_map'] = depth_map
 

@@ -645,6 +645,7 @@ Chaque catégorie de nœud a sa propre couleur (définie dans `node_editor/style
 - Résolution webcam (`webcam_width`, `webcam_height`)
 - Résolution de traitement (`process_width`, `process_height`)
 - Taille de la fenêtre (`editor_width`, `editor_height`)
+- Fréquence d'affichage de l'interface (`ui_fps`, optionnel, 60 par défaut)
 - Activation GPU (`use_gpu`)
 - Compteur de performance (`use_pref_counter`)
 - Port série (`serial_port`, `enable_serial`)

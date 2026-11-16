@@ -20,8 +20,11 @@ def test_dpg_lock_exists():
     
     # Check that the lock is defined
     assert 'import threading' in content, "threading module should be imported"
-    assert '_dpg_lock = threading.RLock()' in content, "_dpg_lock should be defined as RLock"
-    print("✓ _dpg_lock exists and is a RLock")
+    assert '_dpg_lock = UiPriorityLock()' in content, "_dpg_lock should be defined as a UiPriorityLock"
+    scheduling_path = os.path.join(os.path.dirname(util_path), 'scheduling.py')
+    with open(scheduling_path, 'r') as f:
+        assert 'self._lock = threading.RLock()' in f.read(), "UiPriorityLock should be reentrant"
+    print("✓ _dpg_lock exists and is a reentrant lock")
 
 
 def test_dpg_set_value_uses_lock():

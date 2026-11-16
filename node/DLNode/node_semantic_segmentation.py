@@ -8,7 +8,7 @@ import shutil
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from node_editor.util import dpg_get_value, dpg_set_value
+from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 
 from node.node_abc import DpgNodeABC
 #from node_editor.util import convert_cv_to_dpg
@@ -723,15 +723,17 @@ class Node(Node):
             # PotholeYOLOSeg returns (masks, class_ids) tuple and produces
             # a flat {class_name: pixel_count} JSON for the Chart node.
             if isinstance(self._model_instance[model_name_with_provider], PotholeYOLOSeg):
-                segmentation_map, class_ids = self._model_instance[
-                    model_name_with_provider](frame)
+                segmentation_map, class_ids = run_unlocked(
+                    self._model_instance[model_name_with_provider], frame
+                )
                 pixel_counts = self._model_instance[
                     model_name_with_provider].compute_pixel_counts(
                         segmentation_map, class_ids)
                 result = pixel_counts  # flat numeric dict → Chart node compatible
             else:
-                segmentation_map = self._model_instance[model_name_with_provider](
-                    frame)
+                segmentation_map = run_unlocked(
+                    self._model_instance[model_name_with_provider], frame
+                )
                 result['score_th'] = score_th
                 result['class_num'] = class_num
                 result['segmentation_map'] = segmentation_map

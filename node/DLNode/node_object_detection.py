@@ -21,7 +21,7 @@ import cv2
 import dearpygui.dearpygui as dpg
 import numpy as np
 
-from node_editor.util import dpg_get_value, dpg_set_value
+from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 from node.basenode import Node
 from node.DLNode.object_detection.CustomONNX.custom_onnx import CustomONNX
 from node.DLNode.object_detection.BlazeFace.blazeface import BlazeFace
@@ -1525,7 +1525,7 @@ class Node(Node):
                     key = model_name_with_provider
                     if batch_size <= 1:
                         # Fast path: single-frame inference (unchanged behaviour).
-                        bboxes, scores, class_ids = model_instance(frame)
+                        bboxes, scores, class_ids = run_unlocked(model_instance, frame)
                     else:
                         # Reset buffers whenever the user changes the batch slider.
                         if self._last_batch_size.get(key) != batch_size:
@@ -1545,7 +1545,9 @@ class Node(Node):
                         elif len(fb) >= batch_size:
                             # Buffer is full — run a batched inference call.
                             batch_frames = [fb.popleft() for _ in range(batch_size)]
-                            batch_results = self._run_batch_inference(model_instance, batch_frames)
+                            batch_results = run_unlocked(
+                                self._run_batch_inference, model_instance, batch_frames
+                            )
                             rb.extend(batch_results)
                             bboxes, scores, class_ids = rb.popleft()
                             logger.debug(

@@ -6,6 +6,8 @@ DearPyGui's node editor has no zoom API, so zooming out is emulated:
 
 * node positions are pulled towards a pivot (the mouse cursor),
 * node contents are hidden, leaving the title bar, the pins and the links,
+* node titles are shortened (see :func:`short_label`) and, together with the
+  node paddings, drawn smaller and smaller as the view moves away,
 * image previews are kept and displayed as thumbnails (resized by the GPU,
   the textures themselves are untouched).
 
@@ -16,16 +18,70 @@ Positions used outside of this module (export, copy, undo) are always
 *logical* positions, i.e. the positions the nodes have at 100 %.
 """
 import logging
+import re
 
 import dearpygui.dearpygui as dpg
 
 logger = logging.getLogger(__name__)
 
 # Index 0 must be 1.0 (normal view); the other levels are overview scales.
-ZOOM_LEVELS = (1.0, 0.7, 0.5, 0.35)
+ZOOM_LEVELS = (1.0, 0.7, 0.5, 0.35, 0.25, 0.18)
+
+SHORT_LABEL_LENGTH = 5
 
 _MIN_THUMBNAIL_SIZE = 16
 _CONTENT_SLOT = 1
+
+# Title font size per overview scale.  Text is shrunk less than the layout so
+# that the short names stay readable from far away.
+_FONT_SIZES = {0.7: 15, 0.5: 13, 0.35: 11, 0.25: 9, 0.18: 8}
+
+# DearPyGui defaults, scaled down in overview mode
+_NODE_PADDING = (8, 8)
+_ITEM_SPACING = (8, 4)
+_PIN_RADIUS = 4
+_LINK_THICKNESS = 3
+
+# scale -> font item, filled by register_overview_fonts()
+_overview_fonts = {}
+
+_WORD = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+")
+
+
+def short_label(label, limit=SHORT_LABEL_LENGTH):
+    """Abbreviate a node title to at most ``limit`` characters.
+
+    The letters are shared between the words of the title so that every word
+    stays recognisable: ``ObjectDetection`` -> ``ObjDe``, ``ImageConcat`` ->
+    ``ImaCo``, ``MultiObjectTracking`` -> ``MuObT``, ``Blur`` -> ``Blur``.
+    """
+    label = label or ""
+    words = _WORD.findall(label)[:limit]
+    if not words:
+        return label.strip()[:limit]
+
+    taken = [0] * len(words)
+    remaining = limit
+    while remaining:
+        progressed = False
+        for index, word in enumerate(words):
+            if remaining and taken[index] < len(word):
+                taken[index] += 1
+                remaining -= 1
+                progressed = True
+        if not progressed:
+            break
+    return "".join(word[:count] for word, count in zip(words, taken))
+
+
+def register_overview_fonts(font_path):
+    """Load the title fonts of the overview levels.
+
+    Must be called inside a ``dpg.font_registry()`` block.  Without it the
+    overview keeps the regular font.
+    """
+    for scale, size in _FONT_SIZES.items():
+        _overview_fonts[scale] = dpg.add_font(font_path, size)
 
 
 def to_view(logical, pivot, scale):
@@ -45,7 +101,7 @@ def to_logical(view, pivot, scale):
 
 
 class _NodeState:
-    __slots__ = ("logical", "view", "hidden", "images")
+    __slots__ = ("logical", "view", "hidden", "images", "label", "own_theme")
 
     def __init__(self, logical):
         self.logical = list(logical)
@@ -56,6 +112,10 @@ class _NodeState:
         self.hidden = []
         # image item -> (configured size to restore, displayed size at 100 %)
         self.images = {}
+        # (full title, short title) when the title was shortened
+        self.label = None
+        # True when the node had no theme and was given the overview one
+        self.own_theme = False
 
 
 class EditorZoom:
@@ -71,6 +131,14 @@ class EditorZoom:
         self._index = 0
         self._pivot = [0, 0]
         self._nodes = {}
+        # theme -> component holding the overview paddings of its nodes
+        # (_EDITOR -> component thinning the pins and the links)
+        self._density = {}
+        self._own_theme = None
+        # Item holding the editor, given the overview theme because it had none
+        self._themed_holder = None
+
+    _EDITOR = "editor"
 
     @property
     def scale(self):
@@ -150,10 +218,16 @@ class EditorZoom:
             del self._nodes[tag]
 
         self._index = index
+        # The paddings depend on the level: they are rebuilt by _apply()
+        self._clear_density()
         if index == 0:
             for tag, state in self._nodes.items():
                 self._restore(tag, state)
             self._nodes = {}
+            if self._own_theme is not None:
+                if dpg.does_item_exist(self._own_theme):
+                    dpg.delete_item(self._own_theme)
+                self._own_theme = None
         else:
             for tag, state in self._nodes.items():
                 self._apply(tag, state)
@@ -208,8 +282,99 @@ class EditorZoom:
                     width=max(_MIN_THUMBNAIL_SIZE, int(round(width * scale))),
                     height=max(_MIN_THUMBNAIL_SIZE, int(round(height * scale))),
                 )
+        font = _overview_fonts.get(scale)
+        if font is not None:
+            dpg.bind_item_font(tag, font)
+        self._densify(tag, state)
+
+    def _densify(self, tag, state):
+        """Shrink the paddings of the node through its theme.
+
+        Themes are shared by all the nodes of a category, and all the nodes
+        are zoomed together: one extra component per theme is enough.
+        """
+        theme = dpg.get_item_theme(tag)
+        if not theme:
+            if self._own_theme is None:
+                self._own_theme = dpg.add_theme()
+            theme = self._own_theme
+            dpg.bind_item_theme(tag, theme)
+            state.own_theme = True
+        if theme in self._density:
+            return
+
+        scale = self.scale
+
+        def scaled(value):
+            return max(1, int(round(value * scale)))
+
+        component = dpg.add_theme_component(dpg.mvNode, parent=theme)
+        dpg.add_theme_style(
+            dpg.mvNodeStyleVar_NodePadding,
+            scaled(_NODE_PADDING[0]), scaled(_NODE_PADDING[1]),
+            category=dpg.mvThemeCat_Nodes, parent=component,
+        )
+        dpg.add_theme_style(
+            dpg.mvStyleVar_ItemSpacing,
+            scaled(_ITEM_SPACING[0]), scaled(_ITEM_SPACING[1]),
+            category=dpg.mvThemeCat_Core, parent=component,
+        )
+        self._density[theme] = component
+
+        if self._EDITOR not in self._density:
+            self._densify_editor(dpg.get_item_parent(tag))
+
+    def _densify_editor(self, editor):
+        """Thin the pins and the links.
+
+        They are drawn when the editor is closed, with the style of the item
+        holding the editor: a theme on the editor itself comes too late.
+        """
+        self._density[self._EDITOR] = None
+        holder = dpg.get_item_parent(editor) if editor else None
+        if not holder:
+            return
+        theme = dpg.get_item_theme(holder)
+        if not theme:
+            if self._own_theme is None:
+                self._own_theme = dpg.add_theme()
+            theme = self._own_theme
+            dpg.bind_item_theme(holder, theme)
+            self._themed_holder = holder
+        scale = self.scale
+        component = dpg.add_theme_component(dpg.mvAll, parent=theme)
+        dpg.add_theme_style(
+            dpg.mvNodeStyleVar_PinCircleRadius,
+            max(1.5, _PIN_RADIUS * scale),
+            category=dpg.mvThemeCat_Nodes, parent=component,
+        )
+        dpg.add_theme_style(
+            dpg.mvNodeStyleVar_LinkThickness,
+            max(1.0, _LINK_THICKNESS * scale),
+            category=dpg.mvThemeCat_Nodes, parent=component,
+        )
+        self._density[self._EDITOR] = component
+
+    def _clear_density(self):
+        for component in self._density.values():
+            if component is not None and dpg.does_item_exist(component):
+                dpg.delete_item(component)
+        self._density = {}
+        if self._themed_holder is not None:
+            if dpg.does_item_exist(self._themed_holder):
+                dpg.bind_item_theme(self._themed_holder, 0)
+            self._themed_holder = None
 
     def _restore(self, tag, state):
+        if state.label is not None:
+            full, short = state.label
+            # Leave the title alone if the node changed it in the meantime
+            if dpg.get_item_configuration(tag).get("label") == short:
+                dpg.configure_item(tag, label=full)
+        if _overview_fonts:
+            dpg.bind_item_font(tag, 0)
+        if state.own_theme:
+            dpg.bind_item_theme(tag, 0)
         for image, ((width, height), _) in state.images.items():
             if dpg.does_item_exist(image):
                 dpg.configure_item(image, width=width, height=height)
@@ -221,6 +386,12 @@ class EditorZoom:
     def _compact(self, node_tag, state):
         """Hide the node contents, keeping the pins and the image previews."""
         try:
+            full = dpg.get_item_configuration(node_tag).get("label")
+            if full:
+                short = short_label(full)
+                if short and short != full:
+                    dpg.configure_item(node_tag, label=short)
+                    state.label = (full, short)
             for attribute in dpg.get_item_children(node_tag, _CONTENT_SLOT) or []:
                 for item in dpg.get_item_children(attribute, _CONTENT_SLOT) or []:
                     self._compact_item(item, state)
