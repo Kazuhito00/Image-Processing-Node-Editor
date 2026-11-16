@@ -42,10 +42,17 @@ jobs:
         pip install numpy>=1.21.0
     
     # 5️⃣ Installer toutes les dépendances
+    # Une commande par étape : PowerShell ne remonte que le code de sortie de
+    # la dernière commande, un échec de la première passait donc inaperçu.
     - name: Install dependencies
-      run: |
-        pip install --no-build-isolation -r requirements.txt
-        pip install -r requirements-build.txt
+      run: pip install --no-build-isolation -r requirements.txt
+
+    - name: Install build requirements
+      run: pip install -r requirements-build.txt
+
+    # Les modules indispensables au démarrage doivent être importables
+    - name: Check core modules
+      run: python -c "import numpy, cv2, dearpygui.dearpygui, onnxruntime, sounddevice; print('core modules OK')"
 
     # 5.5️⃣ Vérifier que toutes les dépendances sont installées
     - name: Verify dependencies
@@ -71,6 +78,9 @@ jobs:
           # Vérifier que les fichiers critiques sont présents
           $criticalFiles = @(
             "dist/CV_Studio/_internal",
+            "dist/CV_Studio/_internal/cv2",
+            "dist/CV_Studio/_internal/dearpygui",
+            "dist/CV_Studio/_internal/onnxruntime",
             "dist/CV_Studio/node",
             "dist/CV_Studio/node_editor"
           )

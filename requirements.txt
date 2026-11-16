@@ -59,4 +59,3 @@ vosk>=0.3.45
 # Install piper manually from: https://github.com/rhasspy/piper/releases
 # piper-tts (Python wrapper, optional)
 piper-tts>=1.2.0
-mediamtx
