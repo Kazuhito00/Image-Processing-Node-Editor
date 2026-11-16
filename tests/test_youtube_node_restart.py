@@ -139,6 +139,84 @@ def test_youtube_node_update_without_stream():
     print("✓ YouTube node update without stream test passed")
 
 
+def _update(node):
+    return node.update(
+        node_id=1,
+        connection_list=[],
+        node_image_dict={},
+        node_result_dict={},
+        node_audio_dict={},
+    )
+
+
+def test_youtube_node_stalled_stream_does_not_block():
+    """A stalled network read must block neither update() nor Stop.
+
+    update() runs with the DearPyGui lock held: blocking there freezes the UI.
+    """
+    import threading
+    import time
+    import numpy as np
+
+    stalled = threading.Event()
+    unblock = threading.Event()
+    frame = np.full((4, 4, 3), 7, dtype=np.uint8)
+
+    class StallingCapture:
+        def __init__(self):
+            self.reads = 0
+            self.released_while_reading = False
+            self.released = threading.Event()
+            self._reading = False
+
+        def read(self):
+            self.reads += 1
+            if self.reads == 1:
+                return True, frame
+            self._reading = True
+            stalled.set()
+            unblock.wait(10)
+            self._reading = False
+            return False, None
+
+        def release(self):
+            self.released_while_reading = self._reading
+            self.released.set()
+
+    cap = StallingCapture()
+    node = YoutubeNode()
+    node._frame_interval = 0.001
+    node.cap = cap
+    node.is_streaming = True
+    node._start_reader(cap)
+    try:
+        assert stalled.wait(5), "Reader thread should reach the stalled read"
+
+        started = time.monotonic()
+        result = _update(node)
+        assert time.monotonic() - started < 1.0, "update() must not wait for the stream"
+        assert result["image"] is frame, "The frame read before the stall should be delivered"
+        assert node._frame_count == 1
+
+        # No new frame: the last one is kept, and not counted twice
+        result = _update(node)
+        assert result["image"] is frame
+        assert node._frame_count == 1
+
+        started = time.monotonic()
+        node.close(node_id=1)
+        assert time.monotonic() - started < 1.0, "close() must not wait for the stream"
+        assert node.cap is None
+        assert not cap.released.is_set(), "Capture must not be released during read()"
+    finally:
+        unblock.set()
+
+    assert cap.released.wait(5), "Reader thread should release the capture"
+    assert not cap.released_while_reading
+
+    print("✓ YouTube node stalled stream test passed")
+
+
 if __name__ == '__main__':
     print("Testing YouTube Node Restart Functionality...")
     print("=" * 60)
@@ -150,6 +228,7 @@ if __name__ == '__main__':
         ("YouTube node close", test_youtube_node_close),
         ("YouTube node convert_cv_to_dpg", test_youtube_node_convert_cv_to_dpg),
         ("YouTube node update without stream", test_youtube_node_update_without_stream),
+        ("YouTube node stalled stream", test_youtube_node_stalled_stream_does_not_block),
     ]
     
     passed = 0

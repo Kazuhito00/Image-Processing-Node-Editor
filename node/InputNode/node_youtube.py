@@ -399,6 +399,15 @@ class YoutubeNode(Node):
         self._loading = False
         self._loading_thread = None
 
+        # Frames are read by a background thread: cap.read() blocks on the
+        # network and update() runs with the DearPyGui lock held, so reading
+        # there freezes the interface whenever the stream stalls.
+        self._frame_interval = 0.033
+        self._frame_lock = threading.Lock()
+        self._pending_frame = None
+        self._reader_stop = None
+        self._reader_thread = None
+
     def convert_cv_to_dpg(self, cv_img, w, h):
         """Converts OpenCV image to DearPyGui format"""
         if cv_img is None:
@@ -408,6 +417,68 @@ class YoutubeNode(Node):
         rgb_image = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
         normalized = rgb_image.astype(np.float32) / 255.0
         return normalized.flatten().tobytes()
+
+    def _start_reader(self, cap):
+        """Start the thread that reads frames from ``cap``."""
+        stop_event = threading.Event()
+        self._reader_stop = stop_event
+        self._reader_thread = threading.Thread(
+            target=self._reader_loop,
+            args=(cap, stop_event),
+            daemon=True,
+        )
+        self._reader_thread.start()
+
+    def _reader_loop(self, cap, stop_event):
+        """Background thread: reads one frame per interval, keeps the latest.
+
+        The thread owns ``cap`` and is the only one to release it: releasing
+        a capture from another thread while read() is in progress crashes
+        OpenCV.
+        """
+        failures = 0
+        try:
+            while not stop_event.is_set():
+                started = time.monotonic()
+                try:
+                    ret, frame = cap.read()
+                except Exception as e:
+                    print(f"❌ Erreur de lecture: {e}")
+                    ret, frame = False, None
+                if stop_event.is_set():
+                    break
+
+                if ret and frame is not None:
+                    with self._frame_lock:
+                        self._pending_frame = frame
+                    failures = 0
+                    min_delay = 0.001
+                else:
+                    failures += 1
+                    if failures > 150:
+                        print("⚠️ Avertissement: Stream pourrait être terminé ou avoir un problème")
+                        failures = 0
+                    min_delay = 0.01
+
+                elapsed = time.monotonic() - started
+                stop_event.wait(max(min_delay, self._frame_interval - elapsed))
+        finally:
+            cap.release()
+
+    def _release_capture(self):
+        """Stop reading and release the capture, without ever blocking."""
+        stop_event = self._reader_stop
+        cap = self.cap
+        self._reader_stop = None
+        self._reader_thread = None
+        self.cap = None
+        if stop_event is not None:
+            # The reader thread releases the capture once read() returns.
+            stop_event.set()
+        elif cap is not None:
+            cap.release()
+        with self._frame_lock:
+            self._pending_frame = None
 
     def _toggle_audio(self, sender, data, user_data=None):
         """Toggle audio extraction on/off."""
@@ -573,9 +644,7 @@ class YoutubeNode(Node):
                 return
 
             self._loading = True
-            if self.cap is not None:
-                self.cap.release()
-                self.cap = None
+            self._release_capture()
 
             print(f"🔄 Ouverture du stream YouTube: {youtube_url}")
             dpg.set_item_label(tag_node_button_value_name, self._loading_label)
@@ -595,11 +664,12 @@ class YoutubeNode(Node):
 
                     self.cap = cap
                     print("✅ Stream YouTube démarré avec succès!")
-                    self.is_streaming = True
                     self._frame_skip_counter = 0
                     self._frame_count = 0
                     self._audio_chunk_counter = 0
                     self._stream_start_time = time.monotonic()
+                    self.is_streaming = True
+                    self._start_reader(cap)
 
                     if dpg.does_item_exist(tag_node_button_value_name):
                         dpg.set_item_label(tag_node_button_value_name, self._stop_label)
@@ -612,13 +682,13 @@ class YoutubeNode(Node):
 
                 except ValueError as e:
                     print(f"❌ Erreur: {e}")
-                    self.cap = None
+                    self._release_capture()
                     self.is_streaming = False
                     if dpg.does_item_exist(tag_node_button_value_name):
                         dpg.set_item_label(tag_node_button_value_name, self._start_label)
                 except Exception as e:
                     print(f"❌ Erreur inattendue: {e}")
-                    self.cap = None
+                    self._release_capture()
                     self.is_streaming = False
                     if dpg.does_item_exist(tag_node_button_value_name):
                         dpg.set_item_label(tag_node_button_value_name, self._start_label)
@@ -630,9 +700,8 @@ class YoutubeNode(Node):
 
         elif label == self._stop_label:
             if self.cap is not None:
-                self.cap.release()
-                self.cap = None
                 print("⏹️ Stream YouTube arrêté")
+            self._release_capture()
 
             self.is_streaming = False
             self._stop_audio_capture()
@@ -658,27 +727,19 @@ class YoutubeNode(Node):
         except (ValueError, KeyError, AttributeError, TypeError):
             self._frame_interval = 0.033
 
-        frame = None
-        if self.cap is not None and self.is_streaming and self.current_time - self._last_frame_time >= self._frame_interval:
+        with self._frame_lock:
+            frame = self._pending_frame
+            self._pending_frame = None
+
+        if frame is not None and self.is_streaming:
+            self._last_frame = frame
+            self._frame_count += 1
+            self._last_frame_time = self.current_time
             try:
-                ret, frame = self.cap.read()
-                
-                if ret and frame is not None:
-                    self._last_frame = frame
-                    self._frame_count += 1
-                    texture = self.convert_cv_to_dpg(frame, self.small_window_w, self.small_window_h)
-                    dpg_set_value(output_value01_tag, texture)
-                    self._last_frame_time = self.current_time
-                    self._frame_skip_counter = 0
-                else:
-                    self._frame_skip_counter += 1
-                    if self._frame_skip_counter > 150:
-                        print("⚠️ Avertissement: Stream pourrait être terminé ou avoir un problème")
-                        self._frame_skip_counter = 0
-                        
+                texture = self.convert_cv_to_dpg(frame, self.small_window_w, self.small_window_h)
+                dpg_set_value(output_value01_tag, texture)
             except Exception as e:
-                print(f"❌ Erreur de lecture: {e}")
-                self._frame_skip_counter += 1
+                print(f"❌ Erreur d'affichage: {e}")
 
         # Get audio chunk if audio is enabled
         audio_chunk_data = None
@@ -732,9 +793,7 @@ class YoutubeNode(Node):
             self._loading = False
             self._loading_thread.join(timeout=2.0)
         self._stop_audio_capture()
-        if self.cap is not None:
-            self.cap.release()
-            self.cap = None
+        self._release_capture()
         self.is_streaming = False
 
     def get_setting_dict(self, node_id):
