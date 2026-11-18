@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import pytest
 
-from node.DLNode.online_training.distill import yolox_ops
+from node.DLNode.online_training.distill import students, yolox_ops
 from node.DLNode.online_training.distill.engine import (
     DistillConfig,
     DistillationEngine,
@@ -174,6 +174,52 @@ def test_a_student_is_deployed_only_when_it_is_better_on_validation():
     assert not should_deploy({"loss": 0.8, "ap50": 0.50}, deployed)
     assert not should_deploy({"loss": float("nan"), "ap50": 0.9}, deployed)
     assert not should_deploy({"loss": float("inf"), "ap50": 0.0}, deployed)
+
+
+def test_student_catalogue_offers_small_students_built_from_the_shipped_files(tmp_path):
+    from node.DLNode.online_training.distill.yolox_onnx import YoloxOnnx
+
+    models = students.find_yolox_models()
+    catalogue = students.student_catalogue(models)
+    assert list(catalogue) == ["yolox_nano_320", "yolox_nano", "yolox_tiny_320", "yolox_tiny"]
+    # The catalogue comes first, other YOLOX files stay selectable
+    assert students.student_choices(models)[:4] == list(catalogue)
+    assert "yolox_s" in students.student_choices(models)
+
+    cache = str(tmp_path / "students")
+    for key, spec in catalogue.items():
+        path = students.resolve_student(key, cache, models)
+        student = YoloxOnnx(path)
+        assert (student.height, student.width, student.num_classes) == (spec.size, spec.size, 80)
+        assert spec.native == (path == models[spec.base])
+        assert spec.native or path.startswith(cache)
+
+    # Resized variants are generated once and reused
+    path = students.resolve_student("yolox_nano_320", cache, models)
+    stamp = os.path.getmtime(path)
+    assert students.resolve_student("yolox_nano_320", cache, models) == path
+    assert os.path.getmtime(path) == stamp
+    # Plain files are accepted by their name, unknown keys are refused
+    assert students.resolve_student("yolox_s", cache, models) == models["yolox_s"]
+    with pytest.raises(ValueError, match="yolox_nano_320"):
+        students.resolve_student("yolox_xxl", cache, models)
+
+
+def test_resizing_keeps_the_network_and_only_changes_the_declared_shapes():
+    import onnx
+
+    data = students.resize_yolox_onnx(_NANO, 320, 352)
+
+    original, resized = onnx.load(_NANO), onnx.load_from_string(data)
+    assert [n.op_type for n in resized.graph.node] == [n.op_type for n in original.graph.node]
+    assert len(resized.graph.initializer) == len(original.graph.initializer)
+    dims = [d.dim_value for d in resized.graph.input[0].type.tensor_type.shape.dim]
+    assert dims == [1, 3, 320, 352]
+    anchors = len(yolox_ops.make_grid(320, 352)[1])
+    out = [d.dim_value for d in resized.graph.output[0].type.tensor_type.shape.dim]
+    assert out == [1, anchors, 85]
+    with pytest.raises(ValueError, match="multiple of 32"):
+        students.resize_yolox_onnx(_NANO, 300, 300)
 
 
 # ---------------------------------------------------------------------- #
@@ -346,3 +392,31 @@ def test_a_diverging_round_never_reaches_production(student, tmp_path):
     assert record["lr"] == 5.0 and engine._trainer.lr == 2.5
     state = engine._trainer.model.state()
     assert all(np.array_equal(v, engine._trainer.deployed[k]) for k, v in state.items())
+
+
+def test_a_resized_catalogue_student_is_trained_and_deployed_like_any_other(student, tmp_path):
+    """The 320 px students only exist as generated files: the whole chain
+    (onnxruntime inference, onnx2torch conversion, export) must accept them."""
+    from node.DLNode.online_training.distill.yolox_onnx import YoloxOnnx
+
+    models = students.find_yolox_models()
+    path = students.resolve_student("yolox_nano_320", str(tmp_path / "students"), models)
+    config = DistillConfig(
+        device="cpu", min_train=8, min_val=2, steps_per_round=4, batch_size=2,
+        keep_easy=1.0, min_disagreement=0.0, min_gain=-10.0, ap_tolerance=10.0,
+    )
+    engine = DistillationEngine(_TINY, path, str(tmp_path / "run"), config)
+    assert (engine.height, engine.width, engine.num_classes) == (320, 320, 80)
+
+    frames = _frames(40)
+    for frame in frames:
+        engine.collect(frame)
+    record = engine.train_round()
+
+    assert record["deployed_now"] and engine.version == 1
+    exported = str(tmp_path / "student.onnx")
+    engine.export(exported)
+    deployed = YoloxOnnx(exported)
+    assert (deployed.height, deployed.width) == (320, 320)
+    boxes, scores, class_ids = deployed.detect(frames[0])
+    assert len(boxes) == len(scores) == len(class_ids)

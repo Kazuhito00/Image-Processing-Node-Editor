@@ -3,8 +3,12 @@
 """Distil a YOLOX teacher into a YOLOX student on a recorded stream.
 
     python -m node.DLNode.online_training.distill.cli \\
-        --teacher yolox_s.onnx --student yolox_nano.onnx \\
+        --teacher yolox_s.onnx --student yolox_nano_320 \\
         --source camera.mp4 --workdir _Distillation/run1
+
+``--teacher`` and ``--student`` take an ONNX file or the name of a model found
+in the model directories; ``--student`` also takes a key of the student
+catalogue (``--list-students``).
 
 The video (or image directory) is replayed as if it were live: the first part
 feeds the engine, the last part (``--holdout``) is never shown to it and is
@@ -25,6 +29,12 @@ import cv2
 
 from node.DLNode.online_training.distill import yolox_ops
 from node.DLNode.online_training.distill.engine import DistillationEngine, DistillConfig
+from node.DLNode.online_training.distill.students import (
+    describe_student,
+    find_yolox_models,
+    resolve_student,
+    student_choices,
+)
 from node.DLNode.online_training.distill.yolox_onnx import YoloxOnnx
 
 
@@ -59,12 +69,29 @@ def measure(detect, frames, references):
     return meter.result()
 
 
+def resolve_models(teacher, student, workdir):
+    """Paths of the teacher and student files from names, keys or paths."""
+    models = find_yolox_models()
+    if not os.path.isfile(teacher):
+        if teacher not in models:
+            sys.exit(f"teacher {teacher!r} not found; available: {', '.join(models)}")
+        teacher = models[teacher]
+    if not os.path.isfile(student):
+        try:
+            student = resolve_student(student, os.path.join(workdir, "students"), models)
+        except ValueError as exc:
+            sys.exit(str(exc))
+    return teacher, student
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--teacher", required=True)
-    parser.add_argument("--student", required=True)
-    parser.add_argument("--source", required=True, help="video file or image directory")
-    parser.add_argument("--workdir", required=True)
+    parser.add_argument("--list-students", action="store_true",
+                        help="print the student catalogue and exit")
+    parser.add_argument("--teacher", help="ONNX file or model name")
+    parser.add_argument("--student", help="ONNX file, model name or catalogue key")
+    parser.add_argument("--source", help="video file or image directory")
+    parser.add_argument("--workdir")
     parser.add_argument("--every", type=int, default=3, help="use one frame out of N")
     parser.add_argument("--holdout", type=float, default=0.3, help="final share kept for testing")
     parser.add_argument("--rounds", type=int, default=10)
@@ -79,6 +106,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
 
+    if args.list_students:
+        for key in student_choices():
+            print(describe_student(key))
+        return None
+    if not (args.teacher and args.student and args.source and args.workdir):
+        parser.error("--teacher, --student, --source and --workdir are required")
+    teacher_path, student_path = resolve_models(args.teacher, args.student, args.workdir)
+
     frames = list(read_frames(args.source, max(1, args.every)))
     split = int(len(frames) * (1.0 - args.holdout))
     stream, held_out = frames[:split], frames[split:]
@@ -91,11 +126,11 @@ def main(argv=None):
         teacher_view=args.teacher_view,
         min_new_samples=0,
     )
-    engine = DistillationEngine(args.teacher, args.student, args.workdir, config)
+    engine = DistillationEngine(teacher_path, student_path, args.workdir, config)
 
-    teacher = YoloxOnnx(args.teacher)
+    teacher = YoloxOnnx(teacher_path)
     references = [teacher.detect(f, config.score_th, config.nms_th) for f in held_out]
-    before = measure(YoloxOnnx(args.student).detect, held_out, references)
+    before = measure(YoloxOnnx(student_path).detect, held_out, references)
 
     for frame in stream:
         engine.collect(frame)

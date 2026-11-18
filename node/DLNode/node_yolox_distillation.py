@@ -9,7 +9,6 @@ Only the student runs in the pipeline.  Collection of teacher predictions,
 training, validation and deployment of better students are done by
 ``DistillationEngine`` in its own threads; see docs/DISTILLATION_YOLOX.md.
 """
-import glob
 import os
 import sys
 import time
@@ -22,22 +21,20 @@ from node_editor.util import dpg_get_value, dpg_set_value, run_unlocked
 from node.basenode import Node
 from node.DLNode.object_detection.coco_class_names import coco_class_names
 from node.DLNode.online_training.distill.engine import DistillationEngine
+from node.DLNode.online_training.distill.students import (
+    DEFAULT_STUDENT,
+    describe_student,
+    find_yolox_models,
+    resolve_student,
+    student_choices,
+)
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
 _STATUS_PERIOD = 0.5  # seconds between two refreshes of the status text
 
-
-def _model_dirs():
-    dirs = [os.path.join(_HERE, 'object_detection', 'YOLOX', 'model')]
-    if getattr(sys, 'frozen', False):
-        from src.utils.paths import get_models_dir
-        dirs.append(get_models_dir('online_training'))
-    else:
-        dirs.append(os.path.join(_HERE, 'online_training', 'models'))
-    return dirs
+__all__ = ['FactoryNode', 'Node', 'find_yolox_models', 'format_status']
 
 
 def _work_root():
@@ -47,20 +44,9 @@ def _work_root():
     return os.path.abspath('_Distillation')
 
 
-def find_yolox_models():
-    """``{name: path}`` of the YOLOX ONNX files available, smallest first.
-
-    Any ``yolox*.onnx`` file dropped in the model directories is listed, which
-    is how a larger teacher (yolox_m, yolox_l, yolox_x) is added.
-    """
-    paths = []
-    for directory in _model_dirs():
-        paths.extend(glob.glob(os.path.join(directory, 'yolox*.onnx')))
-    paths.sort(key=os.path.getsize)
-    models = {}
-    for path in paths:
-        models.setdefault(os.path.splitext(os.path.basename(path))[0], path)
-    return models
+def _students_dir():
+    """Where the resized students of the catalogue are generated."""
+    return os.path.join(_work_root(), 'students')
 
 
 def format_status(status):
@@ -115,7 +101,12 @@ class FactoryNode:
                 format=dpg.mvFormat_Float_rgb,
             )
 
-        models = list(find_yolox_models())
+        models = find_yolox_models()
+        teachers = list(models)
+        students = student_choices(models)
+        default_student = DEFAULT_STUDENT if DEFAULT_STUDENT in students else (
+            students[0] if students else ''
+        )
         with dpg.node(tag=name, parent=parent, label=node.node_label, pos=pos):
             with dpg.node_attribute(tag=tag_input, attribute_type=dpg.mvNode_Attr_Input):
                 dpg.add_text(tag=tag_input + 'Value', default_value='Image')
@@ -125,12 +116,19 @@ class FactoryNode:
 
             with dpg.node_attribute(attribute_type=dpg.mvNode_Attr_Static):
                 dpg.add_combo(
-                    models, tag=name + ':Teacher', label='teacher', width=width - 80,
-                    default_value=models[-1] if models else '',
+                    teachers, tag=name + ':Teacher', label='teacher', width=width - 80,
+                    default_value=teachers[-1] if teachers else '',
                 )
                 dpg.add_combo(
-                    models, tag=name + ':Student', label='student', width=width - 80,
-                    default_value=models[0] if models else '',
+                    students, tag=name + ':Student', label='student', width=width - 80,
+                    default_value=default_student,
+                    callback=lambda sender, value: dpg_set_value(
+                        name + ':StudentInfo', describe_student(value)
+                    ),
+                )
+                dpg.add_text(
+                    tag=name + ':StudentInfo', default_value=describe_student(default_student),
+                    wrap=width - 10,
                 )
                 dpg.add_checkbox(tag=name + ':Train', label='Distill (background)',
                                  default_value=False)
@@ -190,12 +188,15 @@ class Node(Node):
         self._release_engine()
         models = find_yolox_models()
         try:
-            if teacher not in models or student not in models:
+            if teacher not in models or not student:
                 raise ValueError('select a teacher and a student model')
             entry = Node._engines.get(key)
             if entry is None:
+                # Catalogue students at a reduced input size are generated
+                # from the shipped file the first time they are selected
+                student_path = resolve_student(student, _students_dir(), models)
                 workdir = os.path.join(_work_root(), f'{student}__from__{teacher}')
-                engine = DistillationEngine(models[teacher], models[student], workdir)
+                engine = DistillationEngine(models[teacher], student_path, workdir)
                 engine.start()
                 entry = Node._engines[key] = [engine, 0]
             entry[1] += 1
@@ -310,3 +311,5 @@ class Node(Node):
         for suffix in (':Teacher', ':Student', ':Train', ':Score'):
             if name + suffix in setting_dict:
                 dpg_set_value(name + suffix, setting_dict[name + suffix])
+        if name + ':Student' in setting_dict:
+            dpg_set_value(name + ':StudentInfo', describe_student(setting_dict[name + ':Student']))

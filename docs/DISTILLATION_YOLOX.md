@@ -23,7 +23,8 @@ teacher, tout en gardant sa vitesse.
 ### Dans l'application
 
 1. Menu **VisionModel → YoloxDistillation**, relier une source d'images.
-2. Choisir le **teacher** (le plus gros) et le **student** (le plus petit).
+2. Choisir le **teacher** (le plus gros) et le **student** dans le catalogue
+   (voir ci-dessous).
 3. Cocher **Distill (background)**.
 
 Le nœud affiche et sort les détections du student (image + JSON au format
@@ -44,6 +45,31 @@ Tout est conservé dans `_Distillation/<student>__from__<teacher>/`
 (`CV_Studio_data/distillation/` pour l'exécutable) : au redémarrage, le nœud
 reprend avec le dernier student déployé et les échantillons déjà collectés.
 
+### Les students proposés
+
+Quatre petits students prêts à l'emploi sont proposés dans la liste
+**student**, du moins cher au plus précis. Ils partent tous de poids
+pré-entraînés COCO (80 classes) :
+
+| Clé | Réseau | Entrée | Paramètres | Quand le choisir |
+|---|---|---|---|---|
+| `yolox_nano_320` | YOLOX-Nano | 320×320 | 0,9 M | CPU faible, objets grands ou proches ; le plus rapide |
+| `yolox_nano` | YOLOX-Nano | 416×416 | 0,9 M | **défaut** : le plus petit YOLOX à sa résolution native |
+| `yolox_tiny_320` | YOLOX-Tiny | 320×320 | 5,1 M | plus de capacité que nano, pour le même coût par image que nano 416 |
+| `yolox_tiny` | YOLOX-Tiny | 416×416 | 5,1 M | le plus précis des petits ; entraînement plus lourd (GPU ou CPU solide) |
+
+Les variantes 320 px sont dérivées des fichiers ONNX fournis : le graphe YOLOX
+est entièrement convolutif et n'a de résolution fixée que dans ses déclarations
+d'entrée et de sortie. Elles sont générées à la première sélection, vérifiées
+avec onnxruntime, et conservées dans `_Distillation/students/`. 320 px est dans
+la plage multi-échelle (320 à 640) utilisée par l'entraînement officiel de ces
+poids. Une variante 320 coûte environ 40 % de moins par image que la même
+architecture en 416 ; en contrepartie elle voit moins bien les petits objets.
+
+Le catalogue est défini dans `node/DLNode/online_training/distill/students.py`
+(`STUDENTS`) ; les fichiers `yolox*.onnx` qui n'en font pas partie restent
+sélectionnables par leur nom.
+
 ### Ajouter un teacher plus gros
 
 Tout fichier `yolox*.onnx` déposé dans
@@ -57,10 +83,13 @@ student. Fournis : `yolox_nano` (416), `yolox_tiny` (416), `yolox_s` (640).
 
 ```bash
 python -m node.DLNode.online_training.distill.cli \
-    --teacher node/DLNode/object_detection/YOLOX/model/yolox_s.onnx \
-    --student node/DLNode/object_detection/YOLOX/model/yolox_nano.onnx \
+    --teacher yolox_s --student yolox_nano_320 \
     --source camera.mp4 --workdir _Distillation/essai --rounds 30
 ```
+
+`--teacher` et `--student` acceptent un fichier ONNX, le nom d'un modèle des
+répertoires de modèles ou, pour le student, une clé du catalogue
+(`--list-students` les affiche).
 
 La vidéo est rejouée comme un flux : le début alimente le moteur, la fin
 (`--holdout`, 30 % par défaut) ne lui est jamais montrée et sert à mesurer le
@@ -337,6 +366,7 @@ entraînées.
 | `…/distill/yolox_torch.py` | student entraînable depuis l'ONNX, perte de distillation |
 | `…/distill/yolox_ops.py` | géométrie YOLOX, détections, mesure (NumPy) |
 | `…/distill/yolox_onnx.py` | teacher et student déployé (onnxruntime) |
+| `…/distill/students.py` | catalogue des students, variantes redimensionnées |
 | `…/distill/store.py` | stock d'échantillons sur disque |
 | `…/distill/cli.py` | outil en ligne de commande |
 | `tests/test_yolox_distillation.py` | tests |
