@@ -8,11 +8,13 @@ opencv-contrib-python>=4.8.1.78
 onnxruntime>=1.16.0
 # Optional: onnxruntime-training enables backpropagation in OnlineTraining node
 # Install with: pip install onnxruntime-training
-# Optional: torch + onnx2torch enable REAL network backprop (backbone/heads)
-# for the OnlineTraining student. When absent, the node falls back to the
-# built-in affine correction head. Install with: pip install torch onnx2torch
 onnx>=1.14.0
+# torch + torchvision + onnx2torch: training of the student in the
+# YoloxDistillation node (and real backprop in OnlineTraining). Without them
+# the student still runs, it is just not trained.
 torch>=2.0.0
+torchvision>=0.15.0
+onnx2torch>=1.5.0
 transformers>=4.30.0
 dearpygui>=2.0.0
 mediapipe>=0.10.0

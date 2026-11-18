@@ -353,6 +353,9 @@ hiddenimports += collect_submodules('zeep')
 hiddenimports += collect_submodules('lxml')
 hiddenimports += collect_submodules('isodate')
 hiddenimports += collect_submodules('ifaddr')
+# YOLOX distillation: the student ONNX is converted to PyTorch for training
+hiddenimports += collect_submodules('onnx2torch')
+hiddenimports += ['onnx', 'onnx.numpy_helper', 'onnx.shape_inference']
 
 # Add explicit hidden imports for node modules
 hiddenimports += [

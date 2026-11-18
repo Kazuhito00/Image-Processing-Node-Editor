@@ -146,3 +146,6 @@ objchart_*.png
 # Runtime-generated model registries (recreated from built-ins on startup)
 node/DLNode/object_detection/custom_models_registry.json
 node/DLNode/online_training/student_models_registry.json
+
+# YoloxDistillation node: samples, checkpoints and exported students
+_Distillation/

@@ -52,7 +52,7 @@ jobs:
 
     # Les modules indispensables au démarrage doivent être importables
     - name: Check core modules
-      run: python -c "import numpy, cv2, dearpygui.dearpygui, onnxruntime, sounddevice; print('core modules OK')"
+      run: python -c "import numpy, cv2, dearpygui.dearpygui, onnxruntime, sounddevice, torch, onnx2torch; print('core modules OK')"
 
     # 5.5️⃣ Vérifier que toutes les dépendances sont installées
     - name: Verify dependencies

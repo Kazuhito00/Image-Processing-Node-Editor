@@ -2,6 +2,11 @@
 
 > Entraînement en temps réel par distillation teacher-student pour la détection d'objets.
 
+> ⚠️ Pour distiller un gros YOLOX vers un petit YOLOX, utilisez le nœud
+> **YoloxDistillation** : voir [DISTILLATION_YOLOX.md](DISTILLATION_YOLOX.md).
+> Mesuré sur des images jamais utilisées pour l'entraînement, le nœud
+> OnlineTraining décrit ci-dessous ne fait pas progresser le student.
+
 ---
 
 ## Table des matières

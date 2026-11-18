@@ -536,6 +536,30 @@ def _smoke_test_steps(node_editor):
     yield "done"
 
 
+def _smoke_test_distillation():
+    """Check that a YOLOX student can be converted for training and exported.
+
+    A packaged build must be able to train: there, a missing or broken
+    PyTorch / onnx2torch fails the smoke test.  From sources they are
+    optional and their absence is only reported.
+    """
+    from node.DLNode.online_training.distill import yolox_torch
+    from node.DLNode.node_yolox_distillation import find_yolox_models
+
+    available, reason = yolox_torch.backend_status()
+    if not available:
+        if getattr(sys, "frozen", False):
+            raise RuntimeError(f"Smoke-test failed: distillation unavailable ({reason})")
+        logger.warning("Smoke-test: distillation training unavailable (%s)", reason)
+        return
+    models = find_yolox_models()
+    if not models:
+        raise RuntimeError("Smoke-test failed: no YOLOX model found for distillation")
+    name, path = next(iter(models.items()))
+    yolox_torch.TrainableYolox(path).export()
+    logger.info("Smoke-test: distillation backend OK (%s converted and exported)", name)
+
+
 def main():
     args = get_args()
     setting = args.setting
@@ -815,6 +839,7 @@ def main():
         node_count = len(node_editor._node_factory_list)
         if node_count == 0:
             raise RuntimeError("Smoke-test failed: no node factory was discovered")
+        _smoke_test_distillation()
         logger.info("SMOKE TEST PASSED: %d node types discovered", node_count)
         print(f"SMOKE TEST PASSED: {node_count} node types discovered", flush=True)
 
