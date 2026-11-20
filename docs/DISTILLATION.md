@@ -108,8 +108,35 @@ Dans CV Studio, le nœud **OnlineTraining** implémente cette technique en temps
 4. **Connecter** :
    - Sortie IMAGE de la source → Entrée IMAGE de OnlineTraining
    - Sortie JSON de ObjectDetection → Entrée "Teacher JSON" de OnlineTraining
-5. **Charger un modèle élève** : cliquez "Load Student ONNX" et sélectionnez un petit modèle ONNX (ex: YOLO11-N)
+5. **Choisir un modèle élève** dans la liste du nœud, puis cliquer **Start**
+   (voir ci-dessous ; "Load Student ONNX" ajoute un autre fichier à la liste)
 6. **Lancer** le pipeline — le score de distillation s'affiche en temps réel
+
+### Modèles élèves fournis
+
+Quatre élèves sont proposés d'office dans la liste, du moins coûteux au plus
+coûteux. Tous détectent les 80 classes COCO.
+
+| Élève | Entrée | Paramètres | Entraînement | F1 face à YOLOX-s | Inférence |
+|---|---|---|---|---|---|
+| `yolox_nano` | 416 × 416 | 0,9 M | rétropropagation réseau | 0,59 | 37 ms |
+| `yolox_tiny` | 416 × 416 | 5,1 M | rétropropagation réseau | 0,69 | 69 ms |
+| `nanodet-plus-m_416` | 416 × 416 | 1,2 M | rétropropagation réseau | 0,56 | 48 ms |
+| `yolo11_n` | 608 × 416 | 2,6 M | tête affine seulement | 0,73 | 28 ms |
+
+Les deux dernières colonnes sont indicatives : élève d'origine, sans
+entraînement, sur 10 images de la vidéo de rue du dépôt, CPU 2 cœurs.
+
+- `yolo11_n` utilise un opérateur (`Split`, opset 18) que `onnx2torch` ne
+  convertit pas : le réseau n'est pas entraîné, seule la tête de correction
+  affine l'est.
+- `nanodet-plus-m_416` est lu à la racine du dépôt ; il n'est pas embarqué
+  dans l'exécutable, où il n'apparaît donc pas.
+- Ces élèves ne peuvent pas être supprimés de la liste. Les modèles ajoutés
+  par "Load Student ONNX" suivent, et restent supprimables.
+- `nanodet-m_320_int8` (présent dans `online_training/models/`) n'est pas
+  proposé : sa sortie quantifiée est mal décodée (des milliers de boîtes par
+  image).
 
 ### Exporter le modèle entraîné
 
@@ -138,6 +165,34 @@ d'un appariement strict 1-à-1.
 | `spatial_coverage` | IoU des masques de couverture spatiale agrégés |
 | `loss` | Loss de distillation set-based demandée (plus bas = mieux) |
 | `teacher_count` / `student_count` | Nombre de détections de chaque côté |
+
+### Ce que vaut l'élève : accord avec le professeur
+
+Les métriques ci-dessus sont calculées image par image, sans seuil d'IoU :
+elles bougent beaucoup d'une image à l'autre. Le JSON de sortie donne aussi,
+en tête de `distillation_losses`, des mesures cumulées sur les **100
+dernières images** :
+
+| Métrique | Description |
+|----------|-------------|
+| `f1`, `precision`, `recall` | Accord avec le professeur : une détection compte si elle recouvre une boîte du professeur de la même classe (IoU ≥ 0,5) |
+| `mean_iou` | Qualité de localisation des détections qui concordent |
+| `baseline_f1` | Le même F1 pour l'élève **d'origine**, sur les mêmes images |
+| `f1_gain` | `f1 − baseline_f1` sur ces images : ce que l'entraînement a apporté. Négatif s'il a dégradé l'élève |
+| `inference_ms`, `train_ms` | Durée de l'inférence de l'élève et de l'étape d'entraînement pour la dernière image |
+
+Chaque image est notée **avant** de servir à l'entraînement : aucune de ces
+mesures ne porte sur une image déjà apprise. Avec la rétropropagation réseau,
+l'élève d'origine est rejoué sur une image sur cinq pour `baseline_f1`. Une
+valeur est `null` tant qu'elle n'a pas été mesurée ; une image sans résultat
+du professeur (non connecté, ou trop ancien) ne compte pas.
+
+Dans le nœud **Chart**, `f1` est la série affichée par défaut ; les autres se
+choisissent dans la liste. `f1_gain` est la courbe à regarder pour savoir si
+l'entraînement sert à quelque chose : avec les réglages par défaut, sur la
+vidéo de rue du dépôt, il reste nul (à 0,01 près) pour les quatre élèves
+fournis (voir l'avertissement en tête de ce document) ; dans un essai où
+toutes les couches de `yolox_nano` étaient entraînées, il devenait négatif.
 
 ### Algorithme de calcul (score `[0, 1]`)
 
@@ -190,7 +245,9 @@ Le nœud OnlineTraining expose les contrôles suivants :
 | **Training Active** (checkbox) | Active/désactive l'entraînement (l'inférence continue) |
 | **Score display** | Affiche : score courant, loss courante, meilleur score, meilleure loss |
 | **Stats display** | Affiche : nombre de frames traitées, état de l'entraînement |
-| **Load Student ONNX** (bouton jaune) | Charger un modèle ONNX élève |
+| **Liste des élèves** | Élèves fournis, puis modèles ajoutés |
+| **Start** (bouton vert) | Charge l'élève sélectionné et active l'entraînement |
+| **Load Student ONNX** (bouton jaune) | Ajouter un modèle ONNX élève à la liste |
 | **Export Student ONNX** (bouton vert) | Exporter le modèle courant |
 | **Reset Student** (bouton) | Réinitialiser aux poids originaux |
 

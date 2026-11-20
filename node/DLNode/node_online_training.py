@@ -45,10 +45,6 @@ if getattr(sys, 'frozen', False):
 else:
     _STUDENTS_DIR = os.path.join(_ONLINE_TRAINING_BASE, 'models')
 
-# Built-in student model
-_BUILTIN_STUDENT_MODELS = [
-]
-
 
 class FactoryNode:
     node_label = 'OnlineTraining'
@@ -452,31 +448,16 @@ class Node(Node):
         return options
 
     @classmethod
-    def _ensure_builtin_student_models(cls):
-        """Register built-in student models to the registry if not already present."""
-        try:
-            existing = {e.get('name') for e in student_models_registry.load_registry()}
-        except Exception as exc:
-            logger.warning(f"[OnlineTraining] Could not read student registry: {exc}")
-            return
-        for meta in _BUILTIN_STUDENT_MODELS:
-            name = meta['name']
-            path = meta['path']
-            if name in existing:
-                continue
-            if not os.path.isfile(path):
-                logger.debug(f"[OnlineTraining] Skipping builtin '{name}' — file not found: {path}")
-                continue
-            try:
-                student_models_registry.save_entry(meta)
-                logger.info(f"[OnlineTraining] Registered built-in student model: {name}")
-            except Exception as exc:
-                logger.warning(f"[OnlineTraining] Could not register '{name}': {exc}")
-
-    @classmethod
     def _load_student_models_from_registry(cls):
-        """Load all student models from registry into class-level cache."""
-        cls._student_models = {}
+        """Load the selectable students into the class-level cache.
+
+        The students shipped with the application come first; the ones the
+        user loaded follow.  A shipped student cannot be replaced by a
+        registry entry of the same name.
+        """
+        cls._student_models = {
+            entry['name']: entry for entry in student_models_registry.builtin_models()
+        }
         try:
             entries = student_models_registry.load_registry()
         except Exception as exc:
@@ -484,7 +465,7 @@ class Node(Node):
             return
         for entry in entries:
             name = entry.get('name', '')
-            if name:
+            if name and name not in cls._student_models:
                 cls._student_models[name] = entry
 
     @classmethod
@@ -659,6 +640,8 @@ class Node(Node):
         """
         if not name:
             return False
+        if cls._student_models.get(name, {}).get('builtin'):
+            return False
         found = name in cls._student_models
         try:
             student_models_registry.remove_entry(name)
@@ -672,6 +655,11 @@ class Node(Node):
         """Delete the selected student model and refresh the combobox."""
         if not name:
             logger.warning("[OnlineTraining] No model selected — nothing to delete.")
+            return
+        if Node._student_models.get(name, {}).get('builtin'):
+            logger.warning(
+                f"[OnlineTraining] '{name}' is shipped with the application and cannot be deleted."
+            )
             return
         removed = Node._delete_student_model(name)
         if not removed:
@@ -1025,6 +1013,9 @@ class Node(Node):
                     teacher_scores_list,
                     teacher_class_ids,
                     score_threshold=score_th,
+                    # An absent or stale teacher result is not a teacher that
+                    # saw nothing: such frames do not count in the metrics
+                    teacher_valid=timestamp_aligned and 'bboxes' in teacher_json,
                 )
 
                 # Build output JSON (same format as ObjectDetection)
@@ -1052,6 +1043,11 @@ class Node(Node):
                 distillation = step_result['distillation']
                 step_stats = self._student_trainer.get_stats()
                 result['distillation_losses'] = {
+                    # What the student is worth against the teacher, over the
+                    # last frames and before they are trained on (None until
+                    # measured); see StudentTrainer.metrics.  The Chart node
+                    # shows the first key by default.
+                    **step_result['metrics'],
                     'score': distillation.get('score', 0.0),
                     'class_similarity': distillation.get('class_similarity', 0.0),
                     'count_ratio': distillation.get('count_ratio', 0.0),
@@ -1143,7 +1139,7 @@ class Node(Node):
                 # No student model loaded — show waiting message
                 output_frame = copy.deepcopy(frame)
                 cv2.putText(
-                    output_frame, "Load a Student ONNX model", (10, 30),
+                    output_frame, "Select a student model and press Start", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
                 )
 
@@ -1222,5 +1218,4 @@ class Node(Node):
 # ---------------------------------------------------------------------------
 # Module-level initialization
 # ---------------------------------------------------------------------------
-Node._ensure_builtin_student_models()
 Node._load_student_models_from_registry()

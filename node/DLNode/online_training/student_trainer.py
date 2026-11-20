@@ -32,6 +32,7 @@ import onnxruntime
 
 from node.DLNode.object_detection.onnx_session_utils import make_session
 from node.DLNode.object_detection.CustomONNX.custom_onnx import CustomONNX
+from node.DLNode.online_training.agreement import RollingAgreement
 from node.DLNode.online_training.distillation_loss import compute_distillation_score
 from node.DLNode.online_training.online_adapter import BoxAffineAdapter
 from node.DLNode.online_training.replay_buffer import ReservoirBuffer
@@ -57,6 +58,14 @@ _ADAPTER_LR_MAX = 0.5
 # buffer.  Evaluating every frame is too expensive; every 30 frames keeps the
 # mAP display responsive without slowing down the pipeline.
 _MAP_EVAL_INTERVAL = 30
+
+# Agreement with the teacher is pooled over this many recent frames.
+_AGREEMENT_WINDOW = 100
+
+# With real network training, the original student is run again on one frame
+# out of this many to tell whether the trained student is better than the
+# one it started from (see ``StudentTrainer.metrics``).
+_BASELINE_INTERVAL = 5
 
 
 class StudentTrainer:
@@ -145,6 +154,13 @@ class StudentTrainer:
         self._map_score: float = 0.0
         self._frames_since_map_update: int = 0
 
+        # Agreement with the teacher on recent frames (see ``metrics``).
+        self._agreement = RollingAgreement(_AGREEMENT_WINDOW)
+        self._paired_agreement = RollingAgreement(_AGREEMENT_WINDOW)
+        self._baseline_agreement = RollingAgreement(_AGREEMENT_WINDOW)
+        self.last_inference_ms = None
+        self.last_train_ms = None
+
         # Real, gradient-trained correction head for the requested loss. This is
         # what lets the student's *output* actually change (and improve) frame to
         # frame even without onnxruntime-training.
@@ -160,10 +176,6 @@ class StudentTrainer:
             num_classes=num_classes,
             providers=providers,
         )
-
-        # Keep a copy of the original model bytes for reset
-        with open(model_path, 'rb') as f:
-            self._original_model_bytes = f.read()
 
         # Real network backprop path: convert the student ONNX into a trainable
         # PyTorch module so the requested distillation loss is back-propagated
@@ -317,13 +329,30 @@ class StudentTrainer:
                 return self._torch_infer(frame)
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug(f"[StudentTrainer] torch inference failed: {exc}")
-        return self._student_model(frame)
+        return self._original_infer(frame)
+
+    def _original_infer(self, frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Detections of the network as loaded from the ONNX file (onnxruntime).
+
+        A NanoDet output is decoded exactly as for the trained network, so
+        that both can be compared: CustomONNX's own layout heuristic takes
+        the official NanoDet-Plus export for another layout.
+        """
+        if self.output_format != "nanodet":
+            return self._student_model(frame)
+        model = self._student_model
+        blob, ratio = model._preprocess(frame)
+        raw = model.onnx_session.run(None, {model.input_name: blob})[0]
+        return self._decode(raw, frame, ratio)
 
     def _torch_infer(self, frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Inference through the trained torch weights, reusing CustomONNX decode."""
-        orig_h, orig_w = self._frame_size(frame)
         blob, ratio = self._student_model._preprocess(frame)
-        raw = self._torch.forward_numpy(blob)
+        return self._decode(self._torch.forward_numpy(blob), frame, ratio)
+
+    def _decode(self, raw, frame, ratio):
+        """Detections from the raw output of the network."""
+        orig_h, orig_w = self._frame_size(frame)
         if self.output_format == "yolox":
             return self._student_model._postprocess_yolox(raw, orig_w, orig_h, ratio)
         if self.output_format == "nanodet":
@@ -390,6 +419,7 @@ class StudentTrainer:
         teacher_scores: List,
         teacher_class_ids: List,
         score_threshold: float = 0.3,
+        teacher_valid: bool = True,
     ) -> Dict:
         """Perform one training step: inference + scoring + optional backprop.
 
@@ -405,6 +435,11 @@ class StudentTrainer:
             Teacher model class IDs.
         score_threshold : float
             Minimum confidence to keep student predictions.
+        teacher_valid : bool
+            False when no teacher result is available for this frame (teacher
+            not connected, or its result is stale).  The frame then does not
+            count in the agreement metrics: an absent teacher is not a
+            teacher that saw nothing.
 
         Returns
         -------
@@ -416,9 +451,12 @@ class StudentTrainer:
               set-based loss under the ``loss`` key, lower = closer to teacher)
             - training_step: True when a real parameter update was performed this
               frame (the correction head learned from the requested loss)
+            - metrics: see :meth:`metrics`
         """
         # 1. Student inference (raw network output, before correction)
+        started = time.perf_counter()
         s_bboxes, s_scores, s_class_ids = self.infer(frame)
+        self.last_inference_ms = (time.perf_counter() - started) * 1000.0
 
         # Apply score threshold to student predictions
         if len(s_scores) > 0:
@@ -426,6 +464,9 @@ class StudentTrainer:
             s_bboxes = s_bboxes[mask]
             s_scores = s_scores[mask]
             s_class_ids = s_class_ids[mask]
+        # Without network training, these are the detections of the original
+        # student: the correction head is applied below
+        original = (s_bboxes, s_scores, s_class_ids)
 
         # 1b. When training only the affine correction head (no real-network
         # backprop path), apply it so the returned predictions reflect what the
@@ -450,6 +491,11 @@ class StudentTrainer:
         # source of truth, identical to the one shown by the IoU/Chart nodes), not
         # a separate approximation.
         self._update_last_loss(distillation)
+        if teacher_valid:
+            self._update_agreement(
+                frame, teacher_bboxes, teacher_class_ids,
+                (s_bboxes, s_scores, s_class_ids), original, score_threshold,
+            )
 
         # 3. Update statistics
         self.frames_processed += 1
@@ -469,6 +515,7 @@ class StudentTrainer:
         # update actually happened this frame.
         training_performed = False
         self.last_train_loss = None
+        started = time.perf_counter()
         if self.training_active:
             if self._torch_backprop and self._torch is not None:
                 # Real network backprop: the requested distillation loss is
@@ -484,6 +531,9 @@ class StudentTrainer:
                     teacher_bboxes, teacher_class_ids,
                     s_bboxes, s_class_ids,
                 )
+        self.last_train_ms = (
+            (time.perf_counter() - started) * 1000.0 if training_performed else 0.0
+        )
 
         return {
             'student_bboxes': s_bboxes,
@@ -491,7 +541,58 @@ class StudentTrainer:
             'student_class_ids': s_class_ids,
             'distillation': distillation,
             'training_step': training_performed,
+            'metrics': self.metrics(),
         }
+
+    def _update_agreement(self, frame, teacher_bboxes, teacher_class_ids,
+                          student, original, score_threshold):
+        """Score this frame against the teacher, before it is trained on."""
+        self._agreement.add(teacher_bboxes, teacher_class_ids, *student)
+
+        # Same frames for the student and for the one it started from, or the
+        # comparison would only reflect how hard each set of frames is
+        if self._network_backprop_active:
+            if self.frames_processed % _BASELINE_INTERVAL:
+                return
+            if self._network_update_count > 0:
+                try:
+                    boxes, scores, class_ids = self._original_infer(frame)
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.debug(f"[StudentTrainer] baseline inference failed: {exc}")
+                    return
+                if len(scores) > 0:
+                    mask = scores >= score_threshold
+                    boxes, scores, class_ids = boxes[mask], scores[mask], class_ids[mask]
+                original = (boxes, scores, class_ids)
+        self._paired_agreement.add(teacher_bboxes, teacher_class_ids, *student)
+        self._baseline_agreement.add(teacher_bboxes, teacher_class_ids, *original)
+
+    def metrics(self) -> Dict:
+        """What the student is worth, measured against the teacher.
+
+        Every frame is scored before it is trained on, so none of these
+        figures is measured on a frame the student has already learned.
+
+        precision / recall / f1 : agreement with the teacher over the last
+            frames (same class, IoU >= 0.5).
+        mean_iou : localisation quality of the detections that agree.
+        baseline_f1 : the same F1 for the *original* student, on the same
+            frames.
+        f1_gain : ``f1 - baseline_f1`` on those frames; what training has
+            brought so far.  Negative when training made the student worse.
+        inference_ms / train_ms : duration of the student inference and of
+            the training step for the last frame.
+
+        Values are ``None`` until they have been measured.
+        """
+        result = self._agreement.result()
+        trained = self._paired_agreement.result()["f1"]
+        baseline = self._baseline_agreement.result()["f1"]
+        result["baseline_f1"] = baseline
+        result["f1_gain"] = None if baseline is None else trained - baseline
+        result["inference_ms"] = self.last_inference_ms
+        result["train_ms"] = self.last_train_ms
+        return result
 
     def _torch_train_step(self, frame, teacher_bboxes, teacher_class_ids,
                           frame_w, frame_h, teacher_scores=None):
@@ -637,10 +738,8 @@ class StudentTrainer:
 
     def reset(self):
         """Reset the student model to its original weights."""
-        # Restore original bytes to model path and reload
+        # The model file is never modified by training: reloading it is enough
         try:
-            with open(self.model_path, 'wb') as f:
-                f.write(self._original_model_bytes)
             self._student_model = CustomONNX(
                 model_path=self.model_path,
                 input_width=self.input_width,
@@ -665,6 +764,9 @@ class StudentTrainer:
         # Reset mAP tracking.
         self._map_score = 0.0
         self._frames_since_map_update = 0
+        self._agreement.clear()
+        self._paired_agreement.clear()
+        self._baseline_agreement.clear()
         # Restore the correction head to the identity (no learned correction).
         self._adapter.reset()
         # Clear the replay buffer so stale frames don't influence the fresh student.

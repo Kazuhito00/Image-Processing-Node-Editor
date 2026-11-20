@@ -2,9 +2,15 @@
 # -*- coding: utf-8 -*-
 """Tests for online training distillation loss module."""
 
+import os
+
+import cv2
 import numpy as np
 import pytest
 
+from node.DLNode.online_training import student_models_registry
+from node.DLNode.online_training.agreement import RollingAgreement, count_matches
+from node.DLNode.online_training.student_trainer import StudentTrainer
 from node.DLNode.online_training.distillation_loss import (
     compute_iou,
     match_detections,
@@ -525,3 +531,141 @@ class TestReservoirBuffer:
         assert any(v < 20 for v in final), (
             "Reservoir sampling should retain items from early in the stream."
         )
+
+
+# ─── Agreement with the teacher, shipped students ────────────────────────────
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_VIDEO = os.path.join(
+    _ROOT, "node", "DLNode", "pose_estimation", "movenet", "D0002080169_00000_V_000.mp4"
+)
+_BUILTIN = {entry["name"]: entry for entry in student_models_registry.builtin_models()}
+
+
+def _trainer(name, **settings):
+    entry = _BUILTIN[name]
+    return StudentTrainer(
+        entry["path"], input_width=entry["input_width"], input_height=entry["input_height"],
+        output_format=entry["output_format"], num_classes=entry["num_classes"], **settings,
+    )
+
+
+@pytest.fixture(scope="module")
+def street_scene():
+    """Frames of a street video with what the YOLOX-s teacher detects on them."""
+    from node.DLNode.online_training.distill.yolox_onnx import YoloxOnnx
+
+    teacher = YoloxOnnx(
+        os.path.join(_ROOT, "node", "DLNode", "object_detection", "YOLOX", "model", "yolox_s.onnx")
+    )
+    capture = cv2.VideoCapture(_VIDEO)
+    scene = []
+    for index in range(0, 1500, 150):
+        capture.set(cv2.CAP_PROP_POS_FRAMES, index)
+        frame = capture.read()[1]
+        scene.append((frame, *(values.tolist() for values in teacher.detect(frame, 0.3))))
+    return scene
+
+
+def test_a_detection_agrees_with_one_reference_of_its_class():
+    references = [[0, 0, 100, 100], [200, 200, 300, 300]]
+    boxes = [[0, 0, 100, 90], [2, 2, 100, 100], [200, 200, 300, 300], [500, 500, 600, 600]]
+
+    counts = count_matches(references, [0, 2], boxes, [0.6, 0.9, 0.8, 0.7], [0, 0, 1, 0])
+
+    # The first reference goes to the most confident of its two detections;
+    # the second one is only overlapped by a detection of another class
+    assert counts[:3] == (1, 3, 1)
+    assert counts[3] == pytest.approx(0.9604)
+    assert count_matches(references, [0, 2], [], [], []) == (0, 0, 2, 0.0)
+    assert count_matches([], [], boxes[:1], [0.9], [0]) == (0, 1, 0, 0.0)
+
+
+def test_agreement_is_pooled_over_the_most_recent_frames():
+    box = [[0, 0, 10, 10]]
+    meter = RollingAgreement(window=2)
+    assert meter.result()["f1"] is None
+
+    meter.add(box, [0], [], [], [])  # missed, then pushed out of the window
+    meter.add(box, [0], box, [0.9], [0])
+    meter.add(box, [0], box + [[50, 50, 60, 60]], [0.9, 0.8], [0, 0])
+
+    result = meter.result()
+    assert result["precision"] == pytest.approx(2 / 3) and result["recall"] == 1.0
+    assert result["f1"] == pytest.approx(0.8) and result["mean_iou"] == pytest.approx(1.0)
+
+    quiet = RollingAgreement()
+    quiet.add([], [], [], [], [])  # nothing to find, nothing found
+    assert quiet.result()["f1"] == 1.0 and quiet.result()["mean_iou"] is None
+
+
+def test_shipped_students_are_described_as_the_inspector_reads_them():
+    from node.DLNode.object_detection.onnx_inspector import inspect_onnx_model
+
+    assert {"yolox_nano", "yolox_tiny", "yolo11_n"} <= set(_BUILTIN)
+    for entry in _BUILTIN.values():
+        meta = inspect_onnx_model(entry["path"])
+        # A COCO YOLOX file (85 channels) used to be taken for a 21-class NanoDet
+        for key in ("output_format", "num_classes", "input_width", "input_height"):
+            assert meta[key] == entry[key], (entry["name"], key)
+
+
+@pytest.mark.parametrize("backprop", [True, False], ids=["pytorch", "onnxruntime-only"])
+@pytest.mark.parametrize("name", list(_BUILTIN))
+def test_a_shipped_student_detects_what_the_teacher_detects(
+    name, backprop, street_scene, monkeypatch
+):
+    from node.DLNode.online_training import student_trainer
+
+    if not backprop:  # as when PyTorch is not installed
+        monkeypatch.setattr(student_trainer, "is_torch_backprop_available", lambda: False)
+    trainer = _trainer(name)
+    assert backprop or trainer.backprop_mode == "affine-head"
+
+    trainer.train_step(street_scene[0][0], [], [], [], teacher_valid=False)
+    assert trainer.metrics()["f1"] is None  # no teacher result: nothing measured
+
+    for frame, boxes, scores, class_ids in street_scene:
+        trainer.train_step(frame, boxes, scores, class_ids)
+    metrics = trainer.metrics()
+    # A student decoded with the wrong format or input size agrees with nothing
+    assert metrics["f1"] > 0.4 and metrics["mean_iou"] > 0.6
+    assert metrics["f1_gain"] == 0.0  # training is off: it is the original student
+    assert metrics["inference_ms"] > 0.0 and metrics["train_ms"] == 0.0
+
+
+@pytest.mark.parametrize("name", [n for n in ("yolox_nano", "nanodet-plus-m_416") if n in _BUILTIN])
+def test_the_baseline_is_the_original_student_on_the_same_frames(street_scene, name):
+    pytest.importorskip("torch")
+    pytest.importorskip("onnx2torch")
+    trained = _trainer(name, learning_rate=1e-3, backprop_depth=-1)
+    trained.training_active = True
+    untouched = _trainer(name)
+
+    for index, (frame, boxes, scores, class_ids) in enumerate(street_scene[:6]):
+        trained.train_step(frame, boxes, scores, class_ids)
+        if index % 5 == 0:  # the frames on which the original student is run again
+            untouched.train_step(frame, boxes, scores, class_ids)
+
+    assert trained.get_stats()["network_updates"] > 0
+    metrics = trained.metrics()
+    assert metrics["baseline_f1"] == pytest.approx(untouched.metrics()["f1"])
+    assert metrics["f1_gain"] is not None
+
+
+def test_shipped_students_come_first_and_cannot_be_replaced_or_deleted(monkeypatch):
+    from node.DLNode.node_online_training import Node
+
+    monkeypatch.setattr(student_models_registry, "load_registry", lambda: [
+        {"name": "yolox_nano", "path": "elsewhere.onnx", "output_format": "nanodet"},
+        {"name": "mine", "path": "mine.onnx"},
+    ])
+    monkeypatch.setattr(student_models_registry, "remove_entry", lambda name: None)
+    monkeypatch.setattr(Node, "_student_models", {})
+
+    names = Node._get_student_model_names()
+
+    assert names == list(_BUILTIN) + ["mine"]
+    assert Node._student_models["yolox_nano"]["output_format"] == "yolox"
+    assert not Node._delete_student_model("yolox_nano") and "yolox_nano" in Node._student_models
+    assert Node._delete_student_model("mine") and "mine" not in Node._student_models

@@ -687,20 +687,27 @@ class Node(Chart):
             # Check if we're dealing with dB data (special case)
             is_db_data = "dB" in selected_classes
 
+            def _values(class_id, gaps=False):
+                # An averaged metric with no value in a bucket was not
+                # measured: it is left out rather than drawn at zero
+                missing = np.nan if gaps and class_id in self._avg_accumulators else 0
+                series = self.time_counts[class_id]
+                return [series.get(bucket, missing) for bucket in sorted_buckets]
+
             # Plot based on chart type
             if chart_type == "bar":
                 # Plot bars for each selected class
                 bar_width = 0.8 / max(len(selected_classes), 1)
                 
                 for idx, class_id in enumerate(selected_classes):
-                    counts = [self.time_counts[class_id].get(bucket, 0) for bucket in sorted_buckets]
+                    counts = _values(class_id, gaps=True)
                     offset = (idx - len(selected_classes)/2 + 0.5) * bar_width
                     ax.bar(x_pos + offset, counts, bar_width, label=_get_label(class_id))
             
             elif chart_type == "line":
                 # Plot lines for each selected class
                 for class_id in selected_classes:
-                    counts = [self.time_counts[class_id].get(bucket, 0) for bucket in sorted_buckets]
+                    counts = _values(class_id, gaps=True)
                     ax.plot(x_pos, counts, marker='o', label=_get_label(class_id), linewidth=2)
             
             elif chart_type == "area":
@@ -829,15 +836,18 @@ class Node(Chart):
             elif 'distillation_losses' in node_result and isinstance(
                 node_result.get('distillation_losses'), dict
             ):
-                # Handle OnlineTraining distillation loss metrics
-                # distillation_losses is a flat numeric dict: {avg_iou, score, class_accuracy, ...}
+                # Handle OnlineTraining / YoloxDistillation metrics
+                # distillation_losses is a flat dict of numbers; a value that
+                # has not been measured yet is None
                 loss_data = node_result['distillation_losses']
                 current_bucket = self.get_time_bucket(time_unit)
 
                 for key, value in loss_data.items():
+                    # Known as a metric even before its first value
+                    buckets = self._avg_accumulators[key]
                     if isinstance(value, (int, float)):
                         # Accumulate sum and count to compute running average
-                        acc = self._avg_accumulators[key][current_bucket]
+                        acc = buckets[current_bucket]
                         acc[0] += value
                         acc[1] += 1
                         self.time_counts[key][current_bucket] = acc[0] / acc[1]

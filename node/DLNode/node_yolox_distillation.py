@@ -9,6 +9,7 @@ Only the student runs in the pipeline.  Collection of teacher predictions,
 training, validation and deployment of better students are done by
 ``DistillationEngine`` in its own threads; see docs/DISTILLATION_YOLOX.md.
 """
+import math
 import os
 import sys
 import time
@@ -33,8 +34,9 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 _STATUS_PERIOD = 0.5  # seconds between two refreshes of the status text
+_SETTINGS = (':Teacher', ':Student', ':Train', ':ChartMetrics', ':Score')  # saved with the graph
 
-__all__ = ['FactoryNode', 'Node', 'find_yolox_models', 'format_status']
+__all__ = ['FactoryNode', 'Node', 'distillation_metrics', 'find_yolox_models', 'format_status']
 
 
 def _work_root():
@@ -69,6 +71,54 @@ def format_status(status):
     else:
         lines.append('waiting for samples')
     return '\n'.join(lines)
+
+
+def _number(value):
+    """``value`` if it is a finite number, else ``None`` (not measured)."""
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return value
+    return None
+
+
+def distillation_metrics(status, detections, inference_ms):
+    """Flat numeric metrics of the distillation, as plotted by the Chart node.
+
+    ``val_*`` describe the deployed student on the validation window (the
+    most recent samples, never trained on), against the teacher.
+    ``original_val_*`` are the same measures for the student the distillation
+    started from, on the same images, and ``f1_gain`` is their difference:
+    what the distillation has brought so far.  ``candidate_val_*`` describe
+    the student trained by the last round, deployed or not.
+    ``disagreement`` (0 = identical) compares teacher and deployed student on
+    the last frame shown to the teacher.
+
+    A value is ``None`` until it has been measured.  The Chart node shows the
+    first key by default.
+    """
+    deployed = status.get('deployed') or {}
+    original = status.get('original') or {}
+    candidate = status.get('candidate') or {}
+    val_f1, original_f1 = _number(deployed.get('f1')), _number(original.get('f1'))
+    return {
+        'val_f1': val_f1,
+        'val_ap50': _number(deployed.get('ap50')),
+        'val_precision': _number(deployed.get('precision')),
+        'val_recall': _number(deployed.get('recall')),
+        'val_loss': _number(deployed.get('loss')),
+        'original_val_f1': original_f1,
+        'original_val_ap50': _number(original.get('ap50')),
+        'f1_gain': None if val_f1 is None or original_f1 is None else val_f1 - original_f1,
+        'candidate_val_loss': _number(candidate.get('loss')),
+        'candidate_val_ap50': _number(candidate.get('ap50')),
+        'train_loss': _number(status.get('train_loss')),
+        'disagreement': _number(status.get('disagreement')),
+        'version': status['version'],
+        'rounds': status['rounds'],
+        'train_samples': status['train_samples'],
+        'val_samples': status['val_samples'],
+        'detections': int(detections),
+        'inference_ms': _number(inference_ms),
+    }
 
 
 class FactoryNode:
@@ -132,6 +182,10 @@ class FactoryNode:
                 )
                 dpg.add_checkbox(tag=name + ':Train', label='Distill (background)',
                                  default_value=False)
+                # Unchecked, a Chart node connected to the JSON output counts
+                # the detected classes instead of plotting the metrics
+                dpg.add_checkbox(tag=name + ':ChartMetrics', label='Metrics to Chart',
+                                 default_value=True)
                 dpg.add_slider_float(
                     tag=name + ':Score', label='score', width=width - 80,
                     default_value=0.3, min_value=0.05, max_value=0.95,
@@ -250,7 +304,9 @@ class Node(Node):
 
         # The student is the only model run in the pipeline; the frame is
         # merely offered to the engine, which keeps one every now and then.
+        started = time.perf_counter()
         boxes, scores, class_ids = run_unlocked(engine.detect, frame, score_th)
+        inference_ms = (time.perf_counter() - started) * 1000.0
         engine.submit(frame)
 
         class_names = (
@@ -279,21 +335,18 @@ class Node(Node):
                 text += '\n' + self._message[-60:]
             dpg_set_value(name + ':Status', text)
 
+        metrics = distillation_metrics(status, len(boxes), inference_ms)
         result = {
             'bboxes': boxes.tolist(),
             'scores': scores.tolist(),
             'class_ids': class_ids.tolist(),
             'class_names': class_names,
             'score_th': score_th,
-            'distillation': {
-                'version': status['version'],
-                'phase': status['phase'],
-                'train_samples': status['train_samples'],
-                'val_samples': status['val_samples'],
-                'val_loss': (status.get('deployed') or {}).get('loss'),
-                'val_ap50': (status.get('deployed') or {}).get('ap50'),
-            },
+            'distillation': {'phase': status['phase'], **metrics},
         }
+        # The key the Chart node plots as time series (as for OnlineTraining)
+        if dpg_get_value(name + ':ChartMetrics') is not False:
+            result['distillation_losses'] = metrics
         return {'image': output, 'json': result, 'audio': None}
 
     def close(self, node_id):
@@ -302,13 +355,13 @@ class Node(Node):
     def get_setting_dict(self, node_id):
         name = str(node_id) + ':' + self.node_tag
         setting_dict = {'ver': self._ver, 'pos': dpg.get_item_pos(name)}
-        for suffix in (':Teacher', ':Student', ':Train', ':Score'):
+        for suffix in _SETTINGS:
             setting_dict[name + suffix] = dpg_get_value(name + suffix)
         return setting_dict
 
     def set_setting_dict(self, node_id, setting_dict):
         name = str(node_id) + ':' + self.node_tag
-        for suffix in (':Teacher', ':Student', ':Train', ':Score'):
+        for suffix in _SETTINGS:
             if name + suffix in setting_dict:
                 dpg_set_value(name + suffix, setting_dict[name + suffix])
         if name + ':Student' in setting_dict:

@@ -41,6 +41,38 @@ val loss 0.871  AP50 0.76          mesure du student déployé (validation)
 - Décocher *Distill* met la collecte et l'entraînement en pause ; la détection
   continue.
 
+### Métriques dans le JSON, et dans le nœud Chart
+
+Le JSON de sortie contient les mesures de la distillation sous
+`distillation` et, tant que **Metrics to Chart** est coché, sous
+`distillation_losses` : c'est la clé que le nœud **Chart** trace dans le
+temps. Reliez la sortie JSON à un nœud Chart ; `val_f1` s'affiche par défaut,
+les autres séries se choisissent dans sa liste.
+
+| Métrique | Signification |
+|---|---|
+| `val_f1`, `val_ap50`, `val_precision`, `val_recall`, `val_loss` | Student **déployé** face au teacher, sur la fenêtre de validation (images récentes jamais entraînées) |
+| `original_val_f1`, `original_val_ap50` | Student **d'origine**, sur les mêmes images |
+| `f1_gain` | `val_f1 − original_val_f1` : ce que la distillation a apporté jusqu'ici |
+| `candidate_val_loss`, `candidate_val_ap50` | Student issu du dernier cycle, déployé ou non |
+| `train_loss` | Perte d'entraînement en cours |
+| `disagreement` | Écart teacher / student déployé sur la dernière image montrée au teacher (0 = identiques) |
+| `version`, `rounds` | Students déployés, cycles effectués |
+| `train_samples`, `val_samples` | Échantillons collectés |
+| `detections`, `inference_ms` | Détections et durée d'inférence du student sur l'image courante |
+
+- Une valeur est `null` tant qu'elle n'a pas été mesurée (les `val_*` avant
+  la fin du premier cycle) ; le Chart laisse alors un vide plutôt qu'un zéro.
+- La fenêtre de validation avance avec les images : `val_f1` varie donc aussi
+  parce que les images changent. `f1_gain` compare les deux students sur les
+  **mêmes** images et ne dépend pas de leur difficulté.
+- Mesurer le student d'origine ajoute une évaluation par cycle (environ 3 s
+  pour 70 images sur 2 cœurs, soit 15 % d'un cycle) ; la détection n'est pas
+  ralentie.
+- **Metrics to Chart** décoché, un Chart relié au nœud compte les classes
+  détectées, comme pour `ObjectDetection` ; les mesures restent sous
+  `distillation`.
+
 Tout est conservé dans `_Distillation/<student>__from__<teacher>/`
 (`CV_Studio_data/distillation/` pour l'exécutable) : au redémarrage, le nœud
 reprend avec le dernier student déployé et les échantillons déjà collectés.

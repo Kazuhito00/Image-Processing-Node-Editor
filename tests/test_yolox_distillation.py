@@ -176,6 +176,34 @@ def test_a_student_is_deployed_only_when_it_is_better_on_validation():
     assert not should_deploy({"loss": float("inf"), "ap50": 0.0}, deployed)
 
 
+def test_chart_metrics_are_numbers_or_none_until_measured():
+    from node.DLNode.node_yolox_distillation import distillation_metrics
+
+    status = {
+        "version": 0, "rounds": 0, "train_samples": 3, "val_samples": 1, "train_loss": None,
+        "disagreement": 0.2, "deployed": None, "original": None, "candidate": None,
+    }
+    waiting = distillation_metrics(status, detections=2, inference_ms=12.5)
+    assert list(waiting)[0] == "val_f1"  # the series the Chart node shows by default
+    assert waiting["val_f1"] is None and waiting["f1_gain"] is None
+    assert (waiting["detections"], waiting["disagreement"]) == (2, 0.2)
+    assert waiting["inference_ms"] == 12.5
+
+    status.update(
+        version=2, rounds=3, train_loss=0.8,
+        deployed={"loss": 0.9, "ap50": 0.7, "f1": 0.75, "precision": 0.8, "recall": 0.7},
+        original={"loss": 1.4, "ap50": 0.5, "f1": 0.6, "precision": 0.5, "recall": 0.75},
+        candidate={"loss": float("inf"), "ap50": 0.0, "f1": 0.0},  # a diverged round
+    )
+    measured = distillation_metrics(status, detections=0, inference_ms=10.0)
+    assert measured["f1_gain"] == pytest.approx(0.15) and measured["original_val_ap50"] == 0.5
+    assert measured["candidate_val_loss"] is None  # never an infinite value in a chart
+    assert all(
+        value is None or isinstance(value, (int, float)) and np.isfinite(value)
+        for value in measured.values()
+    )
+
+
 def test_student_catalogue_offers_small_students_built_from_the_shipped_files(tmp_path):
     from node.DLNode.online_training.distill.yolox_onnx import YoloxOnnx
 
@@ -357,6 +385,10 @@ def test_engine_collects_trains_deploys_and_resumes(student, tmp_path):
     assert os.path.isfile(engine.deployed_path)
     trained = engine.detect(frames[0])
     assert trained[0].shape[1] == 4 and len(trained[0]) == len(trained[1]) == len(trained[2])
+    status = engine.status()
+    assert 0.0 <= status["disagreement"] < 1.0
+    # Before the first deployment, the original student is the deployed one
+    assert status["original"] == record["deployed"] and status["deployed"] == record["candidate"]
 
     # A new engine on the same directory continues with the deployed student
     resumed = DistillationEngine(_TINY, _NANO, workdir, config)
@@ -364,6 +396,13 @@ def test_engine_collects_trains_deploys_and_resumes(student, tmp_path):
     assert len(resumed.store.train_names()) == 30
     for a, b in zip(resumed.detect(frames[0]), trained):
         assert np.array_equal(a, b)
+
+    # It still measures the student the distillation started from, on the
+    # same validation images, although it was loaded with the deployed one
+    resumed.train_round()
+    started_from = resumed.status()["original"]
+    assert started_from["loss"] == pytest.approx(record["deployed"]["loss"], rel=1e-4)
+    assert started_from["f1"] == pytest.approx(record["deployed"]["f1"])
 
     resumed.reset()
     assert resumed.version == 0 and not os.path.isfile(resumed.deployed_path)

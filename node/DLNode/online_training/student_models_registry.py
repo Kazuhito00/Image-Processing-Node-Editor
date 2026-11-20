@@ -17,11 +17,78 @@ Entry schema
     "input_height":  int
     "num_classes":   int
 }
+
+Students shipped with the application (:func:`builtin_models`) follow the same
+schema and are not stored in the file: their path depends on where the
+application is installed.
 """
 
 import json
 import os
 import sys
+
+from node.DLNode.object_detection.coco_class_names import coco_class_names
+
+_REPO_ROOT = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+)
+
+# (name, path from the repository root, output format, input width, input
+# height, description).  Each of them was run in the OnlineTraining node
+# against a YOLOX-s teacher before being listed here; all detect the 80 COCO
+# classes.  ``nanodet-m_320_int8`` is deliberately absent: its quantised
+# output is not decoded correctly (thousands of boxes per image).
+_BUILTIN = (
+    (
+        "yolox_nano",
+        "node/DLNode/object_detection/YOLOX/model/yolox_nano.onnx",
+        "yolox", 416, 416,
+        "0.9M parameters, the fastest; trained by real backpropagation",
+    ),
+    (
+        "yolox_tiny",
+        "node/DLNode/object_detection/YOLOX/model/yolox_tiny.onnx",
+        "yolox", 416, 416,
+        "5.1M parameters, more accurate; trained by real backpropagation",
+    ),
+    (
+        "nanodet-plus-m_416",
+        "nanodet-plus-m_416.onnx",
+        "nanodet", 416, 416,
+        "1.2M parameters; trained by real backpropagation",
+    ),
+    (
+        "yolo11_n",
+        "node/DLNode/object_detection/YOLO/model/yolo11_n.onnx",
+        "yolo11", 608, 416,
+        "2.6M parameters; its graph cannot be converted to PyTorch, so only "
+        "the affine correction head is trained, not the network",
+    ),
+)
+
+
+def builtin_models() -> list:
+    """Entries of the students shipped with the application, cheapest first.
+
+    Only those whose file is present are returned.
+    """
+    class_names = {str(index): name for index, name in coco_class_names.items()}
+    entries = []
+    for name, relative_path, output_format, width, height, description in _BUILTIN:
+        path = os.path.join(_REPO_ROOT, *relative_path.split("/"))
+        if os.path.isfile(path):
+            entries.append({
+                "name": name,
+                "path": path,
+                "class_names": dict(class_names),
+                "output_format": output_format,
+                "input_width": width,
+                "input_height": height,
+                "num_classes": len(class_names),
+                "description": description,
+                "builtin": True,
+            })
+    return entries
 
 
 def _get_registry_path():

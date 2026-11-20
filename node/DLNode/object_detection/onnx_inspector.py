@@ -19,6 +19,10 @@ from node.DLNode.object_detection.onnx_session_utils import make_session
 
 logger = logging.getLogger(__name__)
 
+# Class counts of the usual detection datasets, used to tell a YOLOX output
+# ``[anchors, classes + 5]`` from a NanoDet one ``[anchors, classes + 4 * bins]``
+_STANDARD_CLASS_COUNTS = (80, 1, 2, 3, 4, 5, 10, 20, 21, 91)
+
 
 def has_dynamic_batch_dim(input_shape: list) -> bool:
     """True when the first input dimension is dynamic/symbolic."""
@@ -389,7 +393,11 @@ def inspect_onnx_model(model_path: str) -> dict:
                     if candidate_classes > 0 and candidate_classes != (dim2 - 5):
                         # Only pick nanodet when the YOLOX interpretation (dim2-5)
                         # gives a non-standard class count but GFL gives a standard one
-                        if candidate_classes in (80, 1, 2, 3, 4, 5, 10, 20, 21, 91):
+                        # (85 channels are a COCO YOLOX, not a 21-class NanoDet)
+                        if (
+                            candidate_classes in _STANDARD_CLASS_COUNTS
+                            and (dim2 - 5) not in _STANDARD_CLASS_COUNTS
+                        ):
                             output_format = "nanodet"
                             num_classes = candidate_classes
                             detected_nanodet = True

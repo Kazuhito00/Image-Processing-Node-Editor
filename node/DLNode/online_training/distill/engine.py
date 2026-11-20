@@ -134,7 +134,7 @@ def _atomic_write(path, data):
 class _Trainer:
     """Mutable training state: model, optimizer, averaged and deployed weights."""
 
-    def __init__(self, model, config, device):
+    def __init__(self, model, config, device, original):
         import torch
 
         self.torch = torch
@@ -142,6 +142,7 @@ class _Trainer:
         self.device = device
         self.base_lr = self.lr = config.learning_rate
         self.parameters = model.trainable_parameters(config.trainable_fraction)
+        self.original = original
         self.deployed = model.state()
         self.ema = copy.deepcopy(self.deployed)
         self.ema_updates = 0
@@ -225,11 +226,13 @@ class DistillationEngine:
         self._trainer = None
         self._last_thumb = None
         self._deployed_metrics = (None, None)
+        self._original_metrics = (None, None)
         self._trained_on = 0
 
         self._status = {
             "phase": "idle", "message": "", "device": "",
             "train_loss": None, "candidate": None, "deployed": None,
+            "original": None, "disagreement": None,
         }
         self._enabled = False
         self._reset_requested = False
@@ -367,6 +370,7 @@ class DistillationEngine:
         boxes, objectness, class_scores = self._teach(teacher, image, canvas, ratio)
         _, student_obj, student_cls = student.dense(canvas)
         gap = disagreement(objectness, class_scores, student_obj, student_cls)
+        self._set_status(disagreement=gap)
 
         thumb = cv2.resize(
             cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY), (32, 32), interpolation=cv2.INTER_AREA
@@ -403,9 +407,10 @@ class DistillationEngine:
             if device == "cpu":
                 torch.set_num_threads(self._threads)
             model = yolox_torch.TrainableYolox(self.student_path, device)
+            original = model.state()
             if self._deployed_bytes != self._original:
                 model.load_state(model.onnx_state(self._deployed_bytes))
-            self._trainer = _Trainer(model, self.config, device)
+            self._trainer = _Trainer(model, self.config, device, original)
             self._set_status(device=device)
         return self._trainer
 
@@ -581,6 +586,14 @@ class DistillationEngine:
         if self._deployed_metrics[0] != key:
             self._deployed_metrics = (key, self._evaluate(trainer.deployed, val_names))
         deployed = self._deployed_metrics[1]
+        # The student the distillation started from, on the same images: what
+        # the distillation has brought so far
+        if self._version == 0:
+            original = deployed
+        else:
+            if self._original_metrics[0] != key[1]:
+                self._original_metrics = (key[1], self._evaluate(trainer.original, val_names))
+            original = self._original_metrics[1]
         diverged = not losses or not np.isfinite(losses).all()
         candidate = (
             {"loss": float("inf"), "ap50": 0.0, "f1": 0.0}
@@ -619,7 +632,8 @@ class DistillationEngine:
         self._history.append(record)
         self._save_state()
         self._set_status(
-            phase="idle", candidate=candidate, deployed=self._deployed_metrics[1]
+            phase="idle", candidate=candidate, deployed=self._deployed_metrics[1],
+            original=original,
         )
         return record
 
@@ -665,8 +679,12 @@ class DistillationEngine:
             self._student, self._deployed_bytes, self._version = student, self._original, 0
         self._history = []
         self._deployed_metrics = (None, None)
+        self._original_metrics = (None, None)
         self._trainer = None
-        self._set_status(phase="idle", candidate=None, deployed=None, train_loss=None, message="")
+        self._set_status(
+            phase="idle", candidate=None, deployed=None, original=None,
+            train_loss=None, message="",
+        )
 
     # ------------------------------------------------------------------ #
     # Background operation

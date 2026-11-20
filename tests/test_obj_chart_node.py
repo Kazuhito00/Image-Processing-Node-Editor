@@ -300,5 +300,50 @@ def test_obj_chart_microphone_db_support():
     assert chart_image.shape[2] == 3
 
 
+def test_obj_chart_plots_distillation_metrics_and_leaves_unmeasured_ones_out(monkeypatch):
+    """A metric that is None is unknown: it must not be drawn at zero"""
+    import dearpygui.dearpygui as dpg
+    import matplotlib.axes
+    import numpy as np
+    from datetime import timedelta
+    from node.VisualNode.node_obj_chart import FactoryNode
+
+    plotted = {}
+    plot = matplotlib.axes.Axes.plot
+
+    def record(axes, x, y, *args, **kwargs):
+        plotted[kwargs.get('label')] = list(y)
+        return plot(axes, x, y, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.axes.Axes, 'plot', record)
+    dpg.create_context()
+    try:
+        settings = {'process_height': 400, 'process_width': 600, 'use_pref_counter': False}
+        with dpg.node_editor(tag='chart_editor', parent=dpg.add_window()):
+            node = FactoryNode().add_node('chart_editor', 1, opencv_setting_dict=settings)
+        dpg.set_value('1:ObjChart:ChartTypeValue', 'line')
+        connections = [['2:YoloxDistillation:JSON:Output02', '1:ObjChart:JSON:Input02']]
+        source = {'class_ids': [0], 'distillation_losses': {'val_f1': None, 'train_samples': 10}}
+        results = {'2:YoloxDistillation': source}
+
+        node.update(1, connections, {}, results, None)
+        # The first metric is the series shown by default, measured or not
+        assert dpg.get_value('1:ObjChart:ClassSlot:0') == 'val_f1'
+
+        # One minute later the metric has been measured
+        for series in (node.time_counts, node._avg_accumulators):
+            for buckets in series.values():
+                for bucket in list(buckets):
+                    buckets[bucket - timedelta(minutes=1)] = buckets.pop(bucket)
+        source['distillation_losses'] = {'val_f1': 0.7, 'train_samples': 30}
+        node.last_render_time = 0
+        output = node.update(1, connections, {}, results, None)
+    finally:
+        dpg.destroy_context()
+
+    assert np.isnan(plotted['val_f1'][0]) and plotted['val_f1'][1] == 0.7
+    assert output['json'] == {'val_f1': 0.7, '_classes': ['val_f1']}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
