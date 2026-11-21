@@ -20,6 +20,10 @@ teacher, tout en gardant sa vitesse.
 
 ## 1. Utilisation
 
+> Manuel d'utilisation complet (mise en place, suivi avec le nœud Chart,
+> exploitation, diagnostic) : `docs/MANUEL_YOLOX_DISTILLATION.pdf`, généré par
+> `python tools/make_distillation_manual.py [--run WORKDIR]`.
+
 ### Dans l'application
 
 1. Menu **VisionModel → YoloxDistillation**, relier une source d'images.
