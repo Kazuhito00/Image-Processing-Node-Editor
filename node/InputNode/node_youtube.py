@@ -39,48 +39,145 @@ def _is_bot_detection_error(error_str):
     return any(kw in error_lower for kw in keywords)
 
 
-def _try_yt_dlp_stream(url, ydl_opts):
-    """Try to extract a usable video URL via yt-dlp and open a VideoCapture.
+_BASE_YDL_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+    "nocheckcertificate": True,
+    "noplaylist": True,
+    "skip_download": True,
+    # Subtitles/translations are never used here; skipping them avoids extra
+    # network round-trips during extraction.
+    "extractor_args": {"youtube": {"skip": ["translated_subs"]}},
+}
 
-    Exceptions from extract_info (including auth/bot errors) are propagated to
-    the caller so they can be classified correctly.  Returns an opened
-    cv2.VideoCapture on success, or None when no usable format is found.
+_MAX_VIDEO_HEIGHT = 480
+_MAX_CAPTURE_ATTEMPTS = 3
+_COMMON_BROWSERS = ['chrome', 'firefox', 'chromium', 'safari', 'edge']
+
+
+def _extract_info(url, cookies_browser=None):
+    """Run a single yt-dlp extraction and return the info dict (may raise)."""
+    opts = dict(_BASE_YDL_OPTS)
+    if cookies_browser:
+        opts["cookiesfrombrowser"] = (cookies_browser,)
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        return ydl.extract_info(url, download=False)
+
+
+def _select_video_urls(info, max_height=_MAX_VIDEO_HEIGHT):
+    """Return candidate video URLs ordered by preference (lowest height first).
+
+    Direct (non-HLS) formats come first because they open faster in OpenCV;
+    HLS (m3u8) formats are kept as a fallback for live streams that expose
+    nothing else.
     """
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)  # may raise — intentional
+    candidates = [
+        f for f in (info or {}).get("formats", [])
+        if f.get("url")
+        and f.get("vcodec") != "none"
+        and 0 < (f.get("height") or 0) <= max_height
+    ]
+    direct = [f for f in candidates if "m3u8" not in f["url"].lower()]
+    hls = [f for f in candidates if "m3u8" in f["url"].lower()]
+    direct.sort(key=lambda f: f.get("height") or 0)
+    hls.sort(key=lambda f: f.get("height") or 0)
+    return [f["url"] for f in direct + hls]
 
-        formats = info.get("formats", [])
-        usable_formats = [
-            f for f in formats
-            if f.get("url") and "m3u8" not in f.get("url", "").lower()
-            and 0 < (f.get("height") or 0) <= 480
-        ]
 
-        if usable_formats:
-            usable_formats.sort(key=lambda x: x.get("height", 9999))
-            video_url = usable_formats[0].get("url")
-            if video_url:
-                cap = cv2.VideoCapture(video_url)
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        return cap
-                    cap.release()
+def _select_audio_url(info):
+    """Return the best audio-only URL from an already extracted info dict."""
+    if not info:
+        return None
+    audio = [
+        f for f in info.get("formats", [])
+        if f.get("url") and f.get("vcodec") == "none" and f.get("acodec") != "none"
+    ]
+    if not audio:
+        return info.get("url")
+    audio.sort(
+        key=lambda f: (f.get("ext") == "webm", f.get("abr") or 0),
+        reverse=True,
+    )
+    return audio[0]["url"]
+
+
+def _open_capture(video_url):
+    """Open a cv2.VideoCapture and verify a frame can be read."""
+    cap = cv2.VideoCapture(video_url, cv2.CAP_FFMPEG)
+    if cap.isOpened():
+        ret, frame = cap.read()
+        if ret and frame is not None:
+            return cap
+        cap.release()
     return None
 
 
-def get_light_live_stream_url(url, cookies_browser=None):
-    """Retrieves a live YouTube stream URL and returns an opened VideoCapture.
+def _open_from_info(info):
+    """Try opening a capture from the formats of an extracted info dict."""
+    for video_url in _select_video_urls(info)[:_MAX_CAPTURE_ATTEMPTS]:
+        cap = _open_capture(video_url)
+        if cap is not None:
+            return cap
+    return None
 
-    Tries yt-dlp with several format strategies. When YouTube returns a
-    bot-detection error, automatically retries with cookies extracted from the
-    specified browser (or a list of common browsers).
 
-    Args:
-        url: YouTube live URL.
-        cookies_browser: Browser name for yt-dlp ``cookies_from_browser``
-            (e.g. ``'chrome'``, ``'firefox'``).  Pass ``None`` to let the
-            function try common browsers automatically on auth failure.
+def _try_yt_dlp_stream(url, ydl_opts):
+    """Backward-compatible helper: extract with ``ydl_opts`` and open a capture.
+
+    Exceptions from extract_info (including auth/bot errors) are propagated to
+    the caller so they can be classified correctly.
+    """
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)  # may raise — intentional
+    return _open_from_info(info)
+
+
+def _open_with_streamlink(url):
+    """Fallback: resolve the stream with streamlink and open a capture."""
+    try:
+        import streamlink
+    except ImportError:
+        print("streamlink n'est pas installé, fallback ignoré.")
+        return None
+
+    try:
+        print("Tentative avec streamlink...")
+        streams = streamlink.streams(url)
+        if not streams:
+            raise ValueError("Aucun stream trouvé avec streamlink")
+
+        stream = None
+        for quality in ['480p', '360p', '240p', 'worst', 'best']:
+            if quality in streams:
+                stream = streams[quality]
+                print(f"Stream trouvé en qualité: {quality}")
+                break
+        if stream is None:
+            stream = list(streams.values())[0]
+            print("Stream par défaut utilisé")
+
+        stream_url = stream.url if hasattr(stream, 'url') else stream.to_url()
+        cap = _open_capture(stream_url)
+        if cap is not None:
+            print("✓ Stream ouvert avec streamlink")
+        return cap
+    except Exception as e:
+        print(f"Erreur avec streamlink: {e}")
+        return None
+
+
+def open_youtube_stream(url, cookies_browser=None):
+    """Open a YouTube stream and return ``(cap, info)``.
+
+    A single yt-dlp extraction is performed and reused both to pick the video
+    format and (by the caller) to pick the audio format, instead of running
+    several full extractions.  Order of attempts:
+
+    1. yt-dlp without cookies;
+    2. on bot detection, yt-dlp with browser cookies;
+    3. streamlink as a last resort.
+
+    ``info`` is the yt-dlp info dict (``None`` when streamlink was used).
     """
     if not url or not isinstance(url, str):
         raise ValueError("URL must be a non-empty string")
@@ -89,99 +186,47 @@ def get_light_live_stream_url(url, cookies_browser=None):
     if not url:
         raise ValueError("URL cannot be empty or whitespace")
 
-    # Option 1: Essayer avec streamlink (meilleure compatibilité)
-    try:
-        print("Tentative avec streamlink...")
-        import streamlink
-
-        streams = streamlink.streams(url)
-
-        if not streams:
-            raise ValueError("Aucun stream trouvé avec streamlink")
-
-        preferred_qualities = ['480p', '360p', '240p', 'worst', 'best']
-        stream = None
-
-        for quality in preferred_qualities:
-            if quality in streams:
-                stream = streams[quality]
-                print(f"Stream trouvé en qualité: {quality}")
-                break
-
-        if stream is None:
-            stream = list(streams.values())[0]
-            print("Stream par défaut utilisé")
-
-        stream_url = stream.url if hasattr(stream, 'url') else stream.to_url()
-        cap = cv2.VideoCapture(stream_url)
-
-        if cap.isOpened():
-            ret, frame = cap.read()
-            if ret and frame is not None:
-                print("✓ Stream ouvert avec streamlink")
-                return cap
-            else:
-                cap.release()
-
-    except ImportError:
-        print("streamlink n'est pas installé, passage à yt-dlp...")
-    except Exception as e:
-        print(f"Erreur avec streamlink: {e}")
-
-    # Option 2: Utiliser yt-dlp pour obtenir l'URL directe (format bas débit)
     print("Tentative avec yt-dlp...")
-
-    format_strategies = [
-        "worst[height<=480][protocol!=m3u8]",
-        "worst[height<=360]",
-        "worst",
-    ]
-
     last_error = None
     bot_detected = False
+    t0 = time.monotonic()
 
-    def _base_opts(fmt):
-        return {
-            "quiet": True,
-            "no_warnings": True,
-            "format": fmt,
-            "nocheckcertificate": True,
-        }
+    try:
+        info = _extract_info(url)
+        print(f"Extraction yt-dlp en {time.monotonic() - t0:.1f}s")
+        cap = _open_from_info(info)
+        if cap is not None:
+            print("✓ Stream ouvert avec yt-dlp")
+            return cap, info
+    except Exception as e:
+        last_error = e
+        if _is_bot_detection_error(e):
+            bot_detected = True
+            print(f"⚠️ Détection bot YouTube: {e}")
+        else:
+            print(f"Erreur yt-dlp: {e}")
 
-    for format_spec in format_strategies:
-        try:
-            cap = _try_yt_dlp_stream(url, _base_opts(format_spec))
-            if cap is not None:
-                print(f"✓ Stream ouvert avec yt-dlp (format: {format_spec})")
-                return cap
-        except Exception as e:
-            last_error = e
-            if _is_bot_detection_error(e):
-                bot_detected = True
-                print(f"⚠️ Détection bot YouTube (format {format_spec}): {e}")
-            else:
-                print(f"Erreur avec format {format_spec}: {e}")
-
-    # Option 3: réessayer avec les cookies du navigateur
     if bot_detected:
-        browsers_to_try = [cookies_browser] if cookies_browser else ['chrome', 'firefox', 'chromium', 'safari', 'edge']
+        browsers_to_try = [cookies_browser] if cookies_browser else _COMMON_BROWSERS
         print("🔑 Tentative avec les cookies du navigateur...")
-
         for browser in browsers_to_try:
             if browser is None:
                 continue
-            for format_spec in format_strategies:
-                try:
-                    opts = _base_opts(format_spec)
-                    opts["cookiesfrombrowser"] = (browser,)
-                    cap = _try_yt_dlp_stream(url, opts)
-                    if cap is not None:
-                        print(f"✓ Stream ouvert avec yt-dlp + cookies {browser} (format: {format_spec})")
-                        return cap
-                except Exception as e:
-                    if not _is_bot_detection_error(e):
-                        print(f"Erreur avec {browser}/{format_spec}: {e}")
+            try:
+                info = _extract_info(url, cookies_browser=browser)
+                cap = _open_from_info(info)
+                if cap is not None:
+                    print(f"✓ Stream ouvert avec yt-dlp + cookies {browser}")
+                    return cap, info
+            except Exception as e:
+                if not _is_bot_detection_error(e):
+                    print(f"Erreur avec cookies {browser}: {e}")
 
+    cap = _open_with_streamlink(url)
+    if cap is not None:
+        return cap, None
+
+    if bot_detected:
         raise ValueError(
             "YouTube a bloqué la requête (détection de bot). "
             "Connectez-vous à YouTube dans votre navigateur puis relancez. "
@@ -193,6 +238,15 @@ def get_light_live_stream_url(url, cookies_browser=None):
         "Impossible d'ouvrir le stream YouTube. "
         f"Dernière erreur: {last_error}"
     )
+
+
+def get_light_live_stream_url(url, cookies_browser=None):
+    """Retrieves a YouTube stream and returns an opened VideoCapture.
+
+    Thin wrapper around :func:`open_youtube_stream` kept for compatibility.
+    """
+    cap, _info = open_youtube_stream(url, cookies_browser=cookies_browser)
+    return cap
 
 
 class FactoryNode:
@@ -395,6 +449,7 @@ class YoutubeNode(Node):
         self._audio_sr = 16000
         self._audio_chunk_duration = 5.0  # seconds per chunk
         self._audio_url = None
+        self._stream_info = None
         self._audio_stop_event = threading.Event()
         self._loading = False
         self._loading_thread = None
@@ -493,7 +548,16 @@ class YoutubeNode(Node):
             self._stop_audio_capture()
 
     def _get_audio_stream_url(self, youtube_url):
-        """Get the best audio-only stream URL from YouTube using yt-dlp."""
+        """Get the best audio-only stream URL from YouTube.
+
+        Reuses the info dict obtained when the video stream was opened to
+        avoid a second full yt-dlp extraction; only falls back to a fresh
+        extraction when that info is unavailable (e.g. streamlink fallback).
+        """
+        audio_url = _select_audio_url(self._stream_info)
+        if audio_url:
+            return audio_url
+
         cookies_browser = (self._opencv_setting_dict or {}).get("youtube_cookies_browser")
 
         def _extract(ydl_opts):
@@ -651,10 +715,11 @@ class YoutubeNode(Node):
 
             def _open_stream():
                 try:
-                    cap = get_light_live_stream_url(
+                    cap, info = open_youtube_stream(
                         youtube_url,
                         cookies_browser=(self._opencv_setting_dict or {}).get("youtube_cookies_browser"),
                     )
+                    self._stream_info = info
 
                     if cap is None or not cap.isOpened():
                         print("❌ Erreur: Impossible d'ouvrir le stream")
@@ -706,6 +771,7 @@ class YoutubeNode(Node):
             self.is_streaming = False
             self._stop_audio_capture()
             self._audio_url = None
+            self._stream_info = None
             dpg.set_item_label(tag_node_button_value_name, self._start_label)
 
             if self.yellow_button_theme is not None:
